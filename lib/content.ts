@@ -7,16 +7,36 @@ import type { SiteContent } from "./types";
 export const DATA_DIR = path.resolve(/* turbopackIgnore: true */ process.env.DATA_DIR || path.join(/* turbopackIgnore: true */ process.cwd(), "data"));
 export const AUDIO_DIR = path.join(DATA_DIR, "audio");
 const CONTENT_FILE = path.join(DATA_DIR, "content.json");
-const SEED_FILE = path.join(/* turbopackIgnore: true */ process.cwd(), "data", "content.json");
+const SEED_DIR = path.join(/* turbopackIgnore: true */ process.cwd(), "data");
+const SEED_FILE = path.join(SEED_DIR, "content.json");
 
-async function ensureDataDir() {
+let ready: Promise<void> | null = null;
+
+async function seed() {
   await fs.mkdir(AUDIO_DIR, { recursive: true });
   try {
     await fs.access(CONTENT_FILE);
+    return;
   } catch {
-    // Биринчи ишга туширишда бошланғич маълумотларни нусхалаймиз
-    await fs.copyFile(SEED_FILE, CONTENT_FILE);
+    /* биринчи ишга тушириш */
   }
+  // Бошланғич маълумотлар ва демо аудиоларни DATA_DIR га нусхалаймиз
+  const seedAudio = path.join(SEED_DIR, "audio");
+  if (path.resolve(seedAudio) !== path.resolve(AUDIO_DIR)) {
+    const files = await fs.readdir(seedAudio).catch(() => [] as string[]);
+    for (const f of files) {
+      await fs.copyFile(path.join(seedAudio, f), path.join(AUDIO_DIR, f)).catch(() => undefined);
+    }
+  }
+  await fs.copyFile(SEED_FILE, CONTENT_FILE);
+}
+
+export function ensureDataDir() {
+  ready ??= seed().catch((e) => {
+    ready = null;
+    throw e;
+  });
+  return ready;
 }
 
 export async function getContent(): Promise<SiteContent> {

@@ -1,0 +1,62 @@
+# setup.sh томонидан /etc/nginx/sites-available/__DOMAIN__ га ёзилади.
+# __DOMAIN__, __CERT__, __KEY__ ўрнига ҳақиқий қийматлар қўйилади.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__ www.__DOMAIN__;
+    return 301 https://__DOMAIN__$request_uri;
+}
+
+server {
+    # http2 шу кўринишда nginx 1.24 (Ubuntu 24.04) ва янгиларида ишлайди
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name __DOMAIN__ www.__DOMAIN__;
+
+    ssl_certificate     __CERT__;
+    ssl_certificate_key __KEY__;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:SSL:10m;
+
+    if ($host = www.__DOMAIN__) { return 301 https://__DOMAIN__$request_uri; }
+
+    # Аудио 50 МБ лик бўлакларда юкланади (Cloudflare лимити — 100 МБ)
+    client_max_body_size 100m;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml application/manifest+json;
+
+    location /_next/static/ {
+        proxy_pass http://127.0.0.1:3000;
+        expires 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # Аудио оқими: буферсиз, Range сўровлари Node'га етиб боради
+    location /api/audio/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_buffering off;
+        proxy_set_header Range $http_range;
+        proxy_set_header If-Range $http_if_range;
+    }
+
+    location /api/admin/upload {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_request_buffering off;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        # Cloudflare орқасида $remote_addr — тингловчининг ҳақиқий IP'си
+        # (/etc/nginx/conf.d/cloudflare-realip.conf)
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}

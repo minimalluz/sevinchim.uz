@@ -1,7 +1,7 @@
 import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { AUDIO_DIR } from "@/lib/content";
+import { AUDIO_DIR, ensureDataDir } from "@/lib/content";
 import { AUDIO_TYPES as TYPES, SAFE_NAME } from "@/lib/audio";
 
 /**
@@ -13,6 +13,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ file: st
   const ext = path.extname(file).toLowerCase();
   if (!SAFE_NAME.test(file) || !TYPES[ext]) return new Response("Топилмади", { status: 404 });
 
+  await ensureDataDir(); // биринчи сўровда демо аудиолар нусхаланади
   const full = path.join(AUDIO_DIR, file);
   let size: number;
   let mtime: Date;

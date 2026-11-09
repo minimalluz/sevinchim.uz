@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition, type ReactNode } from "react";
 import type { Announcement, Episode, ScheduleSlot, SiteContent, StreamQuality, Weekday } from "@/lib/types";
 import { WEEKDAYS, formatDate, formatDuration } from "@/lib/format";
+import { UPLOAD_CHUNK } from "@/lib/audio";
 import {
   addEpisode, deleteEpisode, logout, saveAnnouncements, saveSchedule, saveStreams, updateEpisode,
   type ActionResult,
@@ -100,24 +101,58 @@ function readDuration(file: File) {
   });
 }
 
-function uploadFile(file: File, onProgress: (p: number) => void) {
-  return new Promise<string>((resolve, reject) => {
+type ChunkReply = { uploadId?: string; received?: number; url?: string; error?: string };
+
+/** Битта бўлакни юбориш (юклаш жараёнини кўрсатиш учун XHR) */
+function sendChunk(file: File, offset: number, uploadId: string, onLoaded: (n: number) => void) {
+  return new Promise<ChunkReply>((resolve, reject) => {
+    const blob = file.slice(offset, Math.min(offset + UPLOAD_CHUNK, file.size));
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", "/api/admin/upload");
     xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
-    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.setRequestHeader("X-File-Size", String(file.size));
+    xhr.setRequestHeader("X-Upload-Offset", String(offset));
+    if (uploadId) xhr.setRequestHeader("X-Upload-Id", uploadId);
+    xhr.upload.onprogress = (e) => onLoaded(e.loaded);
     xhr.onload = () => {
-      try {
-        const data = JSON.parse(xhr.responseText);
-        if (xhr.status >= 200 && xhr.status < 300) resolve(data.url);
-        else reject(new Error(data.error || "Юклашда хатолик"));
-      } catch {
-        reject(new Error("Юклашда хатолик"));
-      }
+      let data: ChunkReply = {};
+      try { data = JSON.parse(xhr.responseText); } catch { /* бўш жавоб */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else if (xhr.status === 409 && typeof data.received === "number") resolve(data);
+      else reject(Object.assign(new Error(data.error || `Юклашда хатолик (${xhr.status})`), { fatal: xhr.status < 500 }));
     };
-    xhr.onerror = () => reject(new Error("Тармоқ хатолиги"));
-    xhr.send(file);
+    xhr.onerror = () => reject(Object.assign(new Error("Тармоқ хатолиги"), { fatal: false }));
+    xhr.send(blob);
   });
+}
+
+/**
+ * Файлни 50 МБ лик бўлакларда юклаш. Тармоқ узилса, ўша бўлакдан
+ * бошлаб 3 мартагача қайта уринади. Охирида аудио манзилини қайтаради.
+ */
+async function uploadFile(file: File, onProgress: (p: number) => void) {
+  let offset = 0;
+  let uploadId = "";
+  let retries = 0;
+  while (true) {
+    try {
+      const r = await sendChunk(file, offset, uploadId, (n) => onProgress((offset + n) / file.size));
+      if (r.url) {
+        onProgress(1);
+        return r.url;
+      }
+      if (r.uploadId) uploadId = r.uploadId;
+      if (typeof r.received !== "number") throw Object.assign(new Error("Сервер жавоби нотўғри"), { fatal: true });
+      offset = r.received;
+      retries = 0;
+      onProgress(offset / file.size);
+    } catch (e) {
+      const fatal = (e as { fatal?: boolean }).fatal;
+      if (fatal || retries >= 3 || offset === 0 && !uploadId) throw e;
+      retries += 1;
+      await new Promise((res) => setTimeout(res, 2000 * retries));
+    }
+  }
 }
 
 function EpisodeFields({ value, onChange, rubrics }: { value: Partial<Episode>; onChange: (v: Partial<Episode>) => void; rubrics: string[] }) {
@@ -190,7 +225,7 @@ function ArchiveAdmin({ episodes, rubrics }: { episodes: Episode[]; rubrics: str
       <form onSubmit={submit} className="rounded-[var(--radius-card)] border border-white/8 bg-surface p-5">
         <h2 className="font-display text-lg font-bold">Янги эшиттириш қўшиш</h2>
         <div className="mt-4 grid gap-3">
-          <Field label="Аудио файл (MP3, M4A, AAC, OGG — 500 МБ гача)">
+          <Field label="Аудио файл (MP3, M4A, AAC, OGG — 1 ГБ гача)">
             <input
               ref={fileRef}
               type="file"

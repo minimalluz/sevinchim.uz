@@ -1,14 +1,13 @@
-# /etc/systemd/system/sevinchim.service
-# sudo systemctl enable --now sevinchim
+# setup.sh томонидан /etc/systemd/system/sevinchim.service га ёзилади.
 [Unit]
 Description=sevinchim.uz (Next.js)
 After=network.target
 
 [Service]
 Type=simple
-User=www-data
-WorkingDirectory=/var/www/sevinchim-uz
-EnvironmentFile=/var/www/sevinchim-uz/.env
+User=__USER__
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=__APP_DIR__/.env
 Environment=NODE_ENV=production
 Environment=PORT=3000
 ExecStart=/usr/bin/npm start
