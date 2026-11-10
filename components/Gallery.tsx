@@ -60,15 +60,30 @@ export function Gallery({ items }: { items: GalleryItem[] }) {
 
   const cur = index === null ? null : items[index];
 
+  // Жадвалда бўш катак қолмаслиги учун охирги сурат керак бўлса кенгаяди.
+  // Компьютер: 3 устун, биринчи сурат 2×2. Телефон: 2 устун, биринчиси тўлиқ эн.
+  const n = items.length;
+  const wideMd = n > 1 && (n + 3) % 3 === 2;
+  const wideSm = n > 1 && (n + 1) % 2 === 1;
+  const itemClass = (i: number) => {
+    if (i === 0) return "col-span-2 md:col-span-2 md:row-span-2";
+    if (i !== n - 1) return "";
+    return [wideSm ? "col-span-2" : "", wideMd ? "md:col-span-2" : wideSm ? "md:col-span-1" : ""].join(" ");
+  };
+  const aspectClass = (i: number) => {
+    if (i !== n - 1 || i === 0) return "aspect-[4/3]";
+    return [wideSm ? "aspect-[8/3]" : "aspect-[4/3]", wideMd ? "md:aspect-[8/3]" : "md:aspect-[4/3]"].join(" ");
+  };
+
   return (
     <>
       <ul className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {items.map((it, i) => (
-          <li key={it.id} className={i === 0 ? "col-span-2 md:col-span-2 md:row-span-2" : ""}>
+          <li key={it.id} className={itemClass(i)}>
             <button
               type="button"
               onClick={() => open(i)}
-              className="group relative block aspect-[4/3] w-full overflow-hidden rounded-2xl bg-surface text-left"
+              className={`group relative block ${aspectClass(i)} w-full overflow-hidden rounded-2xl bg-surface text-left`}
               aria-label={`Очиш: ${it.title}`}
               style={i === 0 ? { aspectRatio: "auto", height: "100%", minHeight: "14rem" } : undefined}
             >
@@ -76,7 +91,7 @@ export function Gallery({ items }: { items: GalleryItem[] }) {
                 src={it.src}
                 alt=""
                 fill
-                sizes={i === 0 ? "(min-width: 768px) 66vw, 100vw" : "(min-width: 768px) 33vw, 50vw"}
+                sizes={i === 0 || (i === n - 1 && wideMd) ? "(min-width: 768px) 66vw, 100vw" : "(min-width: 768px) 33vw, 50vw"}
                 className="object-cover transition duration-500 group-hover:scale-105"
               />
               <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/0 to-black/0" aria-hidden />
@@ -111,7 +126,7 @@ export function Gallery({ items }: { items: GalleryItem[] }) {
                 </div>
               )}
               <p className="mt-4 font-semibold text-white">{cur.title}</p>
-              <p className="text-sm text-white/60">{formatDate(cur.date)}</p>
+              {cur.date && <p className="text-sm text-white/60">{formatDate(cur.date)}</p>}
             </div>
             {items.length > 1 && (
               <>

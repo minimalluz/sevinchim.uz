@@ -17,6 +17,10 @@ export type Profile = {
   frequency: string;
   tagline: string;
   photo: string;
+  /** «Мен ҳақимда» саҳифаси учун алоҳида сурат (бўлмаса photo) */
+  aboutPhoto?: string;
+  /** Суратнинг фокус нуқтаси (CSS object-position), масалан «72% 40%» */
+  aboutPhotoFocus?: string;
   bio: string[];
   timeline: { year: string; title: string; text: string }[];
   programs: { title: string; slot: string; text: string }[];

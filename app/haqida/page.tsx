@@ -34,7 +34,14 @@ export default async function AboutPage() {
 
       <section className="grid gap-8 md:grid-cols-[18rem_1fr] md:gap-12">
         <div className="relative mx-auto aspect-[4/5] w-full max-w-[18rem] overflow-hidden rounded-[2rem]">
-          <Image src={profile.photo} alt={profile.name} fill sizes="18rem" className="object-cover" />
+          <Image
+            src={profile.aboutPhoto || profile.photo}
+            alt={`${profile.name} эфир пайтида`}
+            fill
+            sizes="18rem"
+            className="object-cover"
+            style={{ objectPosition: profile.aboutPhotoFocus || "50% 30%" }}
+          />
         </div>
         <div className="space-y-4 text-lg leading-relaxed text-ink/90">
           {profile.bio.map((p, i) => <p key={i}>{p}</p>)}

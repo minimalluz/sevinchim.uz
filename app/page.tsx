@@ -37,7 +37,7 @@ export default async function HomePage() {
         </div>
 
         <div className="relative order-1 md:order-2">
-          <div className="relative mx-auto aspect-[16/9] w-full overflow-hidden rounded-[2rem] shadow-2xl shadow-brand/20 md:aspect-[4/5]">
+          <div className="relative mx-auto aspect-[4/3] w-full overflow-hidden rounded-[2rem] shadow-2xl shadow-brand/20 md:aspect-[4/5]">
             <Image
               src={profile.photo}
               alt={`${profile.name} — ${profile.role.toLowerCase()}`}
