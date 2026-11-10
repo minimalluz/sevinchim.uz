@@ -24,7 +24,11 @@ export default async function HomePage() {
           <h1 className="font-display text-[2.1rem] font-extrabold leading-[1.05] sm:text-5xl lg:text-6xl">
             Салом, мен <span className="text-gradient">{profile.name}</span>
           </h1>
-          <p className="mt-3 max-w-xl text-muted md:mt-4 md:text-lg">{profile.tagline}</p>
+          {profile.slogan && (
+            <p className="mt-3 font-display text-xl font-semibold text-ink/90 md:mt-4 md:text-2xl">{profile.slogan}</p>
+          )}
+          {/* Телефонда шиор бор бўлса тавсиф яширилади: «тинглаш» тугмаси биринчи экранда қолсин */}
+          <p className={`mt-3 max-w-xl text-muted md:block md:text-lg ${profile.slogan ? "hidden" : ""}`}>{profile.tagline}</p>
           <div className="mt-5 flex flex-wrap items-center gap-3 md:mt-7">
             <ListenLiveButton />
             <Link
@@ -37,7 +41,7 @@ export default async function HomePage() {
         </div>
 
         <div className="relative order-1 md:order-2">
-          <div className="relative mx-auto aspect-[4/3] w-full overflow-hidden rounded-[2rem] shadow-2xl shadow-brand/20 md:aspect-[4/5]">
+          <div className="relative mx-auto aspect-[4/3] max-h-[40svh] w-full max-[359px]:aspect-[16/10] overflow-hidden rounded-[2rem] shadow-2xl shadow-brand/20 md:aspect-[4/5] md:max-h-none">
             <Image
               src={profile.photo}
               alt={`${profile.name} — ${profile.role.toLowerCase()}`}
@@ -52,7 +56,7 @@ export default async function HomePage() {
           <div className="absolute bottom-3 left-3 md:-bottom-4 md:left-auto md:right-6 md:w-[min(20rem,90%)]">
             <div className="rounded-2xl border border-white/10 bg-surface-2/85 px-3 py-2 text-left shadow-xl backdrop-blur md:px-4 md:py-3 md:text-center">
               <p className="font-display text-lg font-extrabold md:text-2xl">{profile.frequency}</p>
-              <p className="text-xs text-muted">«{profile.station}» радиосида тингланг</p>
+              <p className="text-xs text-muted max-[359px]:hidden">«{profile.station}» радиосида тингланг</p>
             </div>
           </div>
         </div>

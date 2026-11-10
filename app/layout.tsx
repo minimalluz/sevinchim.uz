@@ -22,8 +22,10 @@ const unbounded = Unbounded({
 
 export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getContent();
-  const title = `${profile.name} — ${profile.role.toLowerCase()} | ${SITE_NAME}`;
-  const description = `${profile.name}нинг расмий сайти: ${profile.station} жонли эфири, архив дастурлар, эфир жадвали ва янгиликлар.`;
+  const title = profile.slogan
+    ? `${profile.name} — ${profile.slogan.toLowerCase()} | ${SITE_NAME}`
+    : `${profile.name} — ${profile.role.toLowerCase()} | ${SITE_NAME}`;
+  const description = `${profile.slogan ? profile.slogan + ". " : ""}${profile.role} ${profile.name}нинг расмий сайти: «${profile.station}» жонли эфири, архив дастурлар, эфир жадвали ва янгиликлар.`;
   return {
     metadataBase: new URL(SITE_URL),
     title: { default: title, template: `%s | ${SITE_NAME}` },

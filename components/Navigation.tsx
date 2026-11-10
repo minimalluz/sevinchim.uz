@@ -22,14 +22,14 @@ export function SiteHeader({ name }: { name: string }) {
   const { hasStream, liveFallback } = useSiteData();
   const liveOn = track?.kind === "live" && status === "playing";
   const liveBtn =
-    "ml-auto inline-flex min-h-11 items-center gap-2 rounded-full bg-live/15 px-4 text-sm font-semibold text-live transition hover:bg-live/25 md:ml-0";
+    "ml-auto inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full bg-live/15 px-4 text-sm font-semibold text-live transition hover:bg-live/25 md:ml-0";
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/5 bg-bg/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
         <Link href="/" className="flex items-center gap-2.5 font-display text-lg font-bold" aria-label="Севинчим — бош саҳифа">
           <img src="/icons/icon.svg" alt="" width={36} height={36} className="rounded-xl" />
-          <span>Севинчим</span>
+          <span className="max-[359px]:sr-only">Севинчим</span>
         </Link>
 
         <nav className="ml-auto hidden items-center gap-1 md:flex" aria-label="Асосий меню">

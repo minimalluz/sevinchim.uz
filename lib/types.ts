@@ -13,6 +13,10 @@ export type StreamQuality = {
 export type Profile = {
   name: string;
   role: string;
+  /** Асосий шиор: бош саҳифада исм тагида, сайт сарлавҳасида */
+  slogan?: string;
+  /** «Мен ҳақимда» саҳифаси шиори */
+  aboutSlogan?: string;
   station: string;
   frequency: string;
   tagline: string;
@@ -21,6 +25,9 @@ export type Profile = {
   aboutPhoto?: string;
   /** Суратнинг фокус нуқтаси (CSS object-position), масалан «72% 40%» */
   aboutPhotoFocus?: string;
+  /** «Мен ҳақимда» саҳифаси сарлавҳаси ва кириш жумласи */
+  bioTitle?: string;
+  bioIntro?: string;
   bio: string[];
   timeline: { year: string; title: string; text: string }[];
   programs: { title: string; slot: string; text: string }[];

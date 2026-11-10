@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const { profile } = await getContent();
   return {
     title: "Мен ҳақимда",
-    description: `${profile.name} — ${profile.role.toLowerCase()}. Ижодий йўл, радиодаги фаолият ва муаллифлик дастурлари.`,
+    description: `${profile.name} — ${profile.role.toLowerCase()}. ${profile.bioIntro ?? "Ижодий йўл, радиодаги фаолият ва муаллифлик дастурлари."}`,
     alternates: { canonical: "/haqida" },
   };
 }
@@ -30,10 +30,11 @@ export default async function AboutPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Таржимаи ҳол" title="Мен ҳақимда" />
+      <PageHeader eyebrow="Биография" title={profile.bioTitle || "Мен ҳақимда"} lead={profile.bioIntro} />
 
       <section className="grid gap-8 md:grid-cols-[18rem_1fr] md:gap-12">
-        <div className="relative mx-auto aspect-[4/5] w-full max-w-[18rem] overflow-hidden rounded-[2rem]">
+        <figure className="mx-auto w-full max-w-[18rem]">
+        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[2rem]">
           <Image
             src={profile.aboutPhoto || profile.photo}
             alt={`${profile.name} эфир пайтида`}
@@ -43,7 +44,14 @@ export default async function AboutPage() {
             style={{ objectPosition: profile.aboutPhotoFocus || "50% 30%" }}
           />
         </div>
+        {profile.aboutSlogan && (
+          <figcaption className="mt-4 text-center font-display text-lg font-semibold text-gradient">
+            «{profile.aboutSlogan}»
+          </figcaption>
+        )}
+        </figure>
         <div className="space-y-4 text-lg leading-relaxed text-ink/90">
+          <h2 className="font-display text-xl font-bold md:text-2xl">Қисқача биография</h2>
           {profile.bio.map((p, i) => <p key={i}>{p}</p>)}
           <ul className="flex flex-wrap gap-2 pt-2" aria-label="Ижтимоий тармоқлар">
             {profile.socials.map((s) => (
@@ -62,6 +70,7 @@ export default async function AboutPage() {
         </div>
       </section>
 
+      {profile.timeline.length > 0 && (
       <section className="mt-14">
         <SectionTitle>Радиодаги йўлим</SectionTitle>
         <ol className="relative ml-3 border-l-2 border-white/10">
@@ -75,6 +84,7 @@ export default async function AboutPage() {
           ))}
         </ol>
       </section>
+      )}
 
       <section className="mt-14">
         <SectionTitle>Муаллифлик дастурларим</SectionTitle>

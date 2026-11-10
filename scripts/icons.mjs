@@ -21,9 +21,10 @@ await p.setContent(`<!doctype html><meta charset="utf-8"><style>
 .art img{width:100%;height:100%;object-fit:cover;object-position:52% 35%}
 h1{font-size:92px;font-weight:800;letter-spacing:-2px;line-height:1}
 p{font-size:34px;color:#aaa3b8;margin-top:22px;line-height:1.3}
+.slogan{font-size:46px;font-weight:700;color:#f7f3fb;margin-top:26px}
 .pill{display:inline-flex;align-items:center;gap:12px;margin-top:36px;background:rgba(255,59,92,.16);color:#ff3b5c;font-weight:700;font-size:26px;padding:12px 22px;border-radius:999px}
 .dot{width:14px;height:14px;border-radius:50%;background:#ff3b5c}
-</style><div class="glow"></div><div class="art"><img src="data:image/jpeg;base64,${photo}" alt=""></div><div><h1>Севинчим</h1><p>Севинч — радио бошловчи<br>Жонли эфир ва архив дастурлар</p><span class="pill"><span class="dot"></span>sevinchim.uz</span></div>`);
+</style><div class="glow"></div><div class="art"><img src="data:image/jpeg;base64,${photo}" alt=""></div><div><h1>Севинчим</h1><p class="slogan">Қалбга яқин овоз</p><p>Севинч — радио бошловчи</p><span class="pill"><span class="dot"></span>sevinchim.uz</span></div>`);
 await p.screenshot({ path: "public/og.png" });
 await b.close();
 console.log("ok");
