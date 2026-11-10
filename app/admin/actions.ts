@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AUDIO_DIR, updateContent } from "@/lib/content";
 import { SAFE_NAME } from "@/lib/audio";
+import * as recorder from "@/lib/recorder";
 import {
   checkPassword, createSession, destroySession, loginFailed, loginThrottle, requireAdmin,
 } from "@/lib/auth";
@@ -135,10 +136,52 @@ export async function updateEpisode(id: string, input: Partial<Episode>): Promis
     await updateContent((c) => {
       const i = c.episodes.findIndex((x) => x.id === id);
       if (i < 0) throw new Error("Эшиттириш топилмади");
-      c.episodes[i] = { id, ...ep };
+      // Қоралама белгиси таҳрирда сақланади (чоп этиш — алоҳида амал)
+      c.episodes[i] = { id, ...ep, ...(c.episodes[i].draft ? { draft: true } : {}) };
       if (!c.rubrics.includes(ep.rubric)) c.rubrics.push(ep.rubric);
     });
   });
+}
+
+/** Қораламани сайтда чоп этиш */
+export async function publishEpisode(id: string): Promise<ActionResult> {
+  return guard(async () => {
+    await updateContent((c) => {
+      const ep = c.episodes.find((x) => x.id === id);
+      if (!ep) throw new Error("Эшиттириш топилмади");
+      delete ep.draft;
+    });
+  });
+}
+
+/* ---------- Эфирни ёзиб олиш ---------- */
+export async function startRecordingAction(rubric: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    await recorder.startRecording(str(rubric, 80));
+    return { ok: true, message: "Ёзиш бошланди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
+}
+
+export async function stopRecordingAction(): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    await recorder.stopRecording();
+    return { ok: true, message: "Ёзиш тўхтатилди — архивга қоралама бўлиб тушди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
+}
+
+export async function recordingStatusAction(): Promise<recorder.RecordingStatus | null> {
+  try {
+    await requireAdmin();
+    return await recorder.recordingStatus();
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteEpisode(id: string): Promise<ActionResult> {

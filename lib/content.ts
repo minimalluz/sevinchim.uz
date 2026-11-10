@@ -47,6 +47,13 @@ export async function getContent(): Promise<SiteContent> {
   return data;
 }
 
+/** Сайт саҳифалари учун: қоралама эшиттиришларсиз */
+export async function getPublicContent(): Promise<SiteContent> {
+  const data = await getContent();
+  data.episodes = data.episodes.filter((e) => !e.draft);
+  return data;
+}
+
 /** Ёзувни атомар бажарамиз: аввал вақтинчалик файлга, кейин алмаштириш. */
 let writing: Promise<unknown> = Promise.resolve();
 export async function updateContent(mutate: (c: SiteContent) => void | Promise<void>) {

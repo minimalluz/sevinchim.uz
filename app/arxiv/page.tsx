@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getContent } from "@/lib/content";
+import { getPublicContent as getContent } from "@/lib/content";
 import { ArchiveBrowser } from "@/components/Archive";
 import { PageHeader } from "@/components/ui";
 import { SITE_URL } from "@/lib/site";

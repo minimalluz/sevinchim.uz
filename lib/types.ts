@@ -48,6 +48,8 @@ export type Episode = {
   description: string;
   /** /api/audio/<файл> ёки ташқи URL */
   audio: string;
+  /** Қоралама: сайтда кўринмайди (масалан, эфирдан ёзиб олинган, ҳали текширилмаган) */
+  draft?: boolean;
 };
 
 export type GalleryItem = {

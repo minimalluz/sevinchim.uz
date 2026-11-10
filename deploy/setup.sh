@@ -39,8 +39,8 @@ id "$APP_USER" >/dev/null 2>&1 || die "Фойдаланувчи топилмад
 # -----------------------------------------------------------------------------
 step "1/8 Тизим пакетлари"
 $SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -qq
-$SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl git nginx openssl ca-certificates sudo >/dev/null
-ok "curl, git, nginx, openssl"
+$SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl git nginx openssl ca-certificates sudo ffmpeg >/dev/null
+ok "curl, git, nginx, openssl, ffmpeg"
 
 # 2 ГБ дан кам RAM бўлса (масалан, Google e2-micro) — йиғиш учун swap
 mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo)

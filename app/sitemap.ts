@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { getContent } from "@/lib/content";
+import { getPublicContent as getContent } from "@/lib/content";
 import { SITE_URL } from "@/lib/site";
 
 export const revalidate = 3600;

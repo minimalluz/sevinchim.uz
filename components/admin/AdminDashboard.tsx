@@ -1,11 +1,14 @@
 "use client";
 
-import { useRef, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import type { Announcement, Episode, LiveFallback, ScheduleSlot, SiteContent, StreamQuality, Weekday } from "@/lib/types";
-import { WEEKDAYS, formatDate, formatDuration } from "@/lib/format";
+import { WEEKDAYS, formatDate, formatDuration, formatTime, onAir } from "@/lib/format";
+import type { RecordingStatus } from "@/lib/recorder";
 import { UPLOAD_CHUNK } from "@/lib/audio";
 import {
-  addEpisode, deleteEpisode, logout, saveAnnouncements, saveSchedule, saveStreams, updateEpisode,
+  addEpisode, deleteEpisode, logout, publishEpisode, recordingStatusAction, saveAnnouncements, saveSchedule,
+  saveStreams, startRecordingAction, stopRecordingAction, updateEpisode,
   type ActionResult,
 } from "@/app/admin/actions";
 
@@ -80,7 +83,14 @@ export function AdminDashboard({ content }: { content: SiteContent }) {
       </div>
 
       <div className="mt-6">
-        {tab === "archive" && <ArchiveAdmin episodes={content.episodes} rubrics={content.rubrics} />}
+        {tab === "archive" && (
+          <ArchiveAdmin
+            episodes={content.episodes}
+            rubrics={content.rubrics}
+            schedule={content.schedule}
+            hasStream={content.streams.length > 0}
+          />
+        )}
         {tab === "schedule" && <ScheduleAdmin initial={content.schedule} />}
         {tab === "stream" && <StreamAdmin initial={content.streams} fallback={content.liveFallback ?? null} />}
         {tab === "news" && <NewsAdmin initial={content.announcements} />}
@@ -190,7 +200,141 @@ function EpisodeFields({ value, onChange, rubrics }: { value: Partial<Episode>; 
   );
 }
 
-function ArchiveAdmin({ episodes, rubrics }: { episodes: Episode[]; rubrics: string[] }) {
+/* ---------- Эфирни ёзиб олиш ---------- */
+const clock = (ms: number) => new Date(ms + 5 * 3600e3).toISOString().slice(11, 16); // Тошкент вақти
+
+function RecorderPanel({ rubrics, schedule, hasStream }: { rubrics: string[]; schedule: ScheduleSlot[]; hasStream: boolean }) {
+  const router = useRouter();
+  const [status, setStatus] = useState<RecordingStatus | null>(null);
+  const [rubric, setRubric] = useState(rubrics[0] ?? "");
+  const [now, setNow] = useState(() => Date.now());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<ActionResult | null>(null);
+  const wasActive = useRef(false);
+
+  const poll = useCallback(async () => {
+    const st = await recordingStatusAction();
+    if (!st) return;
+    setStatus(st);
+    // Ёзув тугаб, қоралама пайдо бўлса — рўйхатни янгилаймиз
+    if (wasActive.current && !st.active && !st.finalizing) router.refresh();
+    wasActive.current = st.active || st.finalizing;
+  }, [router]);
+
+  // Ҳозир эфирдаги муаллифлик дастури бўлса — рукнни ўзи танлаймиз
+  useEffect(() => {
+    const cur = onAir(schedule).current;
+    if (cur?.own && rubrics.includes(cur.title)) setRubric(cur.title);
+  }, [schedule, rubrics]);
+
+  useEffect(() => {
+    void poll();
+    const active = status?.active || status?.finalizing;
+    const id = setInterval(() => void poll(), active ? 3000 : 20000);
+    return () => clearInterval(id);
+  }, [poll, status?.active, status?.finalizing]);
+
+  useEffect(() => {
+    if (!status?.active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [status?.active]);
+
+  const start = async () => {
+    setBusy(true);
+    setMsg(null);
+    const r = await startRecordingAction(rubric);
+    setMsg(r.ok ? null : r);
+    await poll();
+    setBusy(false);
+  };
+
+  const stop = async () => {
+    if (!confirm("Ёзишни тўхтатайми? Ёзув архивга қоралама бўлиб тушади.")) return;
+    setBusy(true);
+    const r = await stopRecordingAction();
+    setMsg(r);
+    await poll();
+    router.refresh();
+    setBusy(false);
+  };
+
+  const active = status?.active;
+  const elapsed = active && status?.startedAt ? Math.max(0, (now - status.startedAt) / 1000) : 0;
+
+  return (
+    <section
+      className={`rounded-[var(--radius-card)] border p-5 ${active ? "border-live/60 bg-live/[0.07]" : "border-white/8 bg-surface"}`}
+      aria-label="Эфирни ёзиб олиш"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-bold">Эфирни ёзиб олиш</h2>
+        {active && (
+          <span className="inline-flex items-center gap-2 rounded-full bg-live px-3 py-1 text-xs font-bold text-white">
+            <span className="size-2 rounded-full bg-white animate-pulse-dot" /> ЁЗИЛМОҚДА
+          </span>
+        )}
+      </div>
+
+      {status === null ? (
+        <div className="mt-4 h-24 animate-pulse rounded-2xl bg-white/5" />
+      ) : status.finalizing ? (
+        <p className="mt-4 text-muted" role="status">Ёзув сақланмоқда… (бир неча сония)</p>
+      ) : active ? (
+        <div className="mt-4 grid gap-4">
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
+            <p className="font-display text-5xl font-extrabold tabular-nums" aria-live="off">{formatTime(elapsed)}</p>
+            <div className="text-sm text-muted">
+              <p><b className="text-ink">{status.rubric}</b></p>
+              <p>{((status.bytes ?? 0) / 1048576).toFixed(1)} МБ ёзилди</p>
+              <p>Автоматик тўхтайди: {clock((status.startedAt ?? 0) + status.maxSeconds * 1000)} да</p>
+            </div>
+          </div>
+          {!status.connected && <p className="text-sm text-gold" role="status">Оқимга қайта уланмоқда…</p>}
+          {status.reconnects ? <p className="text-xs text-muted">Узилишлар: {status.reconnects} марта (ёзилган қисмлар бирлаштирилади)</p> : null}
+          <button className={`${btn} min-h-14 bg-ink px-8 text-base text-bg`} disabled={busy} onClick={stop}>
+            ■ Тўхтатиш ва сақлаш
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-3">
+          <p className="text-sm text-muted">
+            Эфир бошланганда тугмани босинг. Ёзув архивга <b className="text-ink">қоралама</b> бўлиб тушади — тинглаб кўриб, кейин чоп этасиз.
+            Тўхтатиш эсдан чиқса, {Math.round(status.maxSeconds / 60)} дақиқадан кейин ўзи тўхтайди.
+          </p>
+          {!hasStream ? (
+            <p className="rounded-xl bg-gold/10 px-3 py-2 text-sm text-gold">
+              Ёзиш учун аввал «FM оқим» бўлимига радионинг расмий оқим манзилини киритинг.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="Рукн (муаллифлик дастури)" className="min-w-56 flex-1">
+                <select className={input} value={rubric} onChange={(e) => setRubric(e.target.value)}>
+                  {rubrics.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </Field>
+              <button className={`${btn} min-h-14 bg-live px-8 text-base text-white`} disabled={busy || !rubric} onClick={start}>
+                ● Ёзишни бошлаш
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {status?.lastDraft && !active && (
+        <p className="mt-3 text-sm font-semibold text-mint" role="status">
+          ✓ «{status.lastDraft.title}» архивга қоралама бўлиб тушди — пастда текшириб, чоп этинг.
+        </p>
+      )}
+      {status?.lastError && <p className="mt-2 text-sm text-gold" role="status">{status.lastError}</p>}
+      {msg && !msg.ok && <p className="mt-2 text-sm font-semibold text-live" role="alert">{msg.error}</p>}
+    </section>
+  );
+}
+
+function ArchiveAdmin({
+  episodes, rubrics, schedule, hasStream,
+}: { episodes: Episode[]; rubrics: string[]; schedule: ScheduleSlot[]; hasStream: boolean }) {
   const [draft, setDraft] = useState<Partial<Episode>>({ date: today(), rubric: rubrics[0] ?? "" });
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -222,6 +366,7 @@ function ArchiveAdmin({ episodes, rubrics }: { episodes: Episode[]; rubrics: str
 
   return (
     <div className="grid gap-8">
+      <RecorderPanel rubrics={rubrics} schedule={schedule} hasStream={hasStream} />
       <form onSubmit={submit} className="rounded-[var(--radius-card)] border border-white/8 bg-surface p-5">
         <h2 className="font-display text-lg font-bold">Янги эшиттириш қўшиш</h2>
         <div className="mt-4 grid gap-3">
@@ -275,10 +420,18 @@ function ArchiveAdmin({ episodes, rubrics }: { episodes: Episode[]; rubrics: str
               ) : (
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{ep.title}</p>
+                    <p className="font-semibold">
+                      {ep.draft && <span className="mr-2 rounded-full bg-gold/15 px-2 py-0.5 text-xs font-bold text-gold">Қоралама</span>}
+                      {ep.title}
+                    </p>
                     <p className="text-xs text-muted">{ep.rubric} • {formatDate(ep.date)} • {formatDuration(ep.duration)}</p>
                   </div>
                   <audio controls preload="none" src={ep.audio} className="h-10 w-full max-w-xs" />
+                  {ep.draft && (
+                    <button className={btnPrimary} disabled={saver.pending} onClick={() => saver.run(() => publishEpisode(ep.id))}>
+                      Чоп этиш
+                    </button>
+                  )}
                   <button className={btnGhost} onClick={() => { setEditing(ep.id); setEditDraft(ep); }}>Таҳрирлаш</button>
                   <button
                     className={btnDanger}

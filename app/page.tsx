@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { getContent } from "@/lib/content";
+import { getPublicContent as getContent } from "@/lib/content";
 import { formatDate } from "@/lib/format";
 import { ListenLiveButton, NowOnAirCard } from "@/components/Radio";
 import { EpisodeCard } from "@/components/Archive";
