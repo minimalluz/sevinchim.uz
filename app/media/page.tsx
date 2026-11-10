@@ -16,8 +16,13 @@ export default async function MediaPage() {
   const { gallery, announcements } = await getContent();
   return (
     <>
-      <PageHeader eyebrow="Студиядан" title="Медиа ва янгиликлар" lead="Эфир ортидаги лаҳзалар, фото ва видеолар ҳамда яқин дастурлар анонси." />
+      <PageHeader
+        eyebrow="Студиядан"
+        title="Медиа ва янгиликлар"
+        lead={announcements.length > 0 ? "Эфир ортидаги лаҳзалар, фото ва видеолар ҳамда яқин дастурлар анонси." : "Эфир ортидаги лаҳзалар, фото ва видеолар."}
+      />
 
+      {announcements.length > 0 && (
       <section aria-labelledby="ann">
         <SectionTitle><span id="ann">Дастурлар анонси</span></SectionTitle>
         <ol className="grid gap-3 md:grid-cols-3">
@@ -30,8 +35,9 @@ export default async function MediaPage() {
           ))}
         </ol>
       </section>
+      )}
 
-      <section className="mt-12" aria-labelledby="gal">
+      <section className={announcements.length > 0 ? "mt-12" : ""} aria-labelledby="gal">
         <SectionTitle><span id="gal">Фото ва видео галерея</span></SectionTitle>
         <Gallery items={gallery} />
       </section>

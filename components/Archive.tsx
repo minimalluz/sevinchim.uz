@@ -171,7 +171,13 @@ export function ArchiveBrowser({ episodes, rubrics }: { episodes: Episode[]; rub
       <p className="mt-5 mb-3 text-sm text-muted" aria-live="polite">{list.length} та эшиттириш</p>
 
       {list.length === 0 ? (
-        <p className="rounded-2xl bg-surface p-6 text-center text-muted">Танланган шартлар бўйича эшиттириш топилмади.</p>
+        <p className="rounded-2xl bg-surface p-6 text-center text-muted">
+          {episodes.length === 0
+            ? "Архив тез орада тўлдирилади — эфирлар шу ерга қўшиб борилади."
+            : rubric !== "all" && month === "all"
+              ? `«${rubric}» эшиттиришлари тез орада архивга қўшилади.`
+              : "Танланган шартлар бўйича эшиттириш топилмади."}
+        </p>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {list.map((ep) => <EpisodeCard key={ep.id} ep={ep} rubrics={rubrics} />)}

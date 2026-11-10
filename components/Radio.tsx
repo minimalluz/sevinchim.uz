@@ -256,3 +256,19 @@ export function ScheduleGrid() {
     </div>
   );
 }
+
+/**
+ * «кейинги эфир: бугун 19:00» / «ҳозир эфирда» — эфир жадвалидан ҳисобланади.
+ * Сервер ва биринчи чизишда fallback матн кўрсатилади (гидратация фарқи бўлмасин).
+ */
+export function NextAirText({ fallback }: { fallback?: string }) {
+  const air = useOnAir();
+  if (!air) return <>{fallback?.toLowerCase() ?? ""}</>;
+  if (air.current?.own) return <span className="font-semibold text-live">ҳозир эфирда</span>;
+  if (!air.next) return <>{fallback?.toLowerCase() ?? ""}</>;
+  const today = tashkentNow().day;
+  const tomorrow = ((today % 7) + 1) as Weekday;
+  const when =
+    air.next.day === today ? "бугун" : air.next.day === tomorrow ? "эртага" : WEEKDAYS[air.next.day].toLowerCase();
+  return <>кейинги эфир: {when} {air.next.start}</>;
+}

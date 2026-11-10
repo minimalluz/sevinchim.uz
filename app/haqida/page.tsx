@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { getContent } from "@/lib/content";
 import { PageHeader, SectionTitle } from "@/components/ui";
 import { IconExternal, IconMic } from "@/components/icons";
@@ -87,14 +88,36 @@ export default async function AboutPage() {
       )}
 
       <section className="mt-14">
-        <SectionTitle>Муаллифлик дастурларим</SectionTitle>
+        <SectionTitle>Муаллифлик дастурлари</SectionTitle>
         <div className="grid gap-3 sm:grid-cols-2">
           {profile.programs.map((p) => (
-            <article key={p.title} className="rounded-[var(--radius-card)] border border-white/5 bg-surface p-5">
-              <span className="grid size-11 place-items-center rounded-xl bg-brand/15 text-brand"><IconMic width={22} height={22} /></span>
+            <article
+              key={p.title}
+              className={`flex flex-col rounded-[var(--radius-card)] border p-5 ${
+                p.archived ? "border-white/5 bg-surface" : "border-brand/40 bg-brand/[0.08] sm:col-span-2"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className={`grid size-11 place-items-center rounded-xl ${p.archived ? "bg-white/5 text-muted" : "bg-brand/15 text-brand"}`}>
+                  <IconMic width={22} height={22} />
+                </span>
+                {!p.archived && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-live/15 px-3 py-1 text-xs font-bold text-live">
+                    <span className="size-1.5 rounded-full bg-live animate-pulse-dot" /> ЭФИРДА
+                  </span>
+                )}
+              </div>
               <h3 className="mt-4 font-display text-lg font-bold">{p.title}</h3>
               <p className="mt-1 text-sm font-semibold text-gold">{p.slot}</p>
               <p className="mt-2 text-muted">{p.text}</p>
+              {p.archived && (
+                <Link
+                  href={`/arxiv?rukn=${encodeURIComponent(p.title)}`}
+                  className="mt-4 inline-flex min-h-11 items-center gap-1 self-start text-sm font-semibold text-brand hover:underline"
+                >
+                  Архивда тинглаш →
+                </Link>
+              )}
             </article>
           ))}
         </div>

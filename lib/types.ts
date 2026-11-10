@@ -32,7 +32,8 @@ export type Profile = {
   bioIntro?: string;
   bio: string[];
   timeline: { year: string; title: string; text: string }[];
-  programs: { title: string; slot: string; text: string }[];
+  /** archived: true — эфирдан тушган, эшиттиришлари архивда */
+  programs: { title: string; slot: string; text: string; archived?: boolean }[];
   socials: { label: string; url: string }[];
 };
 

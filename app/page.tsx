@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getPublicContent as getContent } from "@/lib/content";
 import { formatDate } from "@/lib/format";
-import { ListenLiveButton, NowOnAirCard } from "@/components/Radio";
+import { ListenLiveButton, NextAirText, NowOnAirCard } from "@/components/Radio";
 import { EpisodeCard } from "@/components/Archive";
 import { SectionTitle } from "@/components/ui";
 import { IconArchive } from "@/components/icons";
@@ -59,7 +59,7 @@ export default async function HomePage() {
               {profile.airTime ? (
                 <p className="text-xs text-muted">
                   <span className="max-[359px]:hidden">«{profile.station}» · </span>
-                  {profile.airTime.toLowerCase()}
+                  <NextAirText fallback={profile.airTime} />
                 </p>
               ) : (
                 <p className="text-xs text-muted max-[359px]:hidden">«{profile.station}» радиосида тингланг</p>
@@ -74,13 +74,15 @@ export default async function HomePage() {
         <NowOnAirCard />
       </section>
 
-      {/* Архивга сўнгги қўшилганлар */}
+      {/* Архивга сўнгги қўшилганлар (архив бўш бўлса кўрсатилмайди) */}
+      {latest.length > 0 && (
       <section className="mt-12">
         <SectionTitle href="/arxiv" linkLabel="Барча архив">Архивга янги қўшилганлар</SectionTitle>
         <div className="grid gap-3 lg:grid-cols-2">
           {latest.map((ep) => <EpisodeCard key={ep.id} ep={ep} rubrics={rubrics} />)}
         </div>
       </section>
+      )}
 
       {/* Анонслар */}
       {announcements.length > 0 && (
