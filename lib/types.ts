@@ -19,6 +19,8 @@ export type Profile = {
   aboutSlogan?: string;
   station: string;
   frequency: string;
+  /** Эфир вақти, масалан «Ҳар оқшом 19:00–22:00» (бош саҳифа баннерида) */
+  airTime?: string;
   tagline: string;
   photo: string;
   /** «Мен ҳақимда» саҳифаси учун алоҳида сурат (бўлмаса photo) */
