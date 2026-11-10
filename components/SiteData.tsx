@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { ScheduleSlot } from "@/lib/types";
+import type { LiveFallback, ScheduleSlot } from "@/lib/types";
 import { onAir } from "@/lib/format";
 
 type SiteData = {
@@ -9,6 +9,10 @@ type SiteData = {
   station: string;
   frequency: string;
   schedule: ScheduleSlot[];
+  /** Расмий оқим манзили киритилганми */
+  hasStream: boolean;
+  /** Оқим бўлмаганда жонли эфир тингланадиган ташқи саҳифа */
+  liveFallback: LiveFallback | null;
 };
 
 const Ctx = createContext<SiteData | null>(null);

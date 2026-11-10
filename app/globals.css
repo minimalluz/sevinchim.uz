@@ -1,4 +1,9 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+
+/* Автоматик қидирув ўчирилган (source(none)): Windows'да Turbopack уни бузиб,
+   бирорта ҳам синф ҳосил бўлмай қолиши мумкин. Папкалар аниқ кўрсатилади. */
+@source "./";
+@source "../components";
 
 @theme {
   --color-bg: #0e0c14;

@@ -10,6 +10,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // `next dev` лойиҳага AGENTS.md ёзмасин
+  agentRules: false,
   compress: true,
   images: {
     formats: ["image/avif", "image/webp"],

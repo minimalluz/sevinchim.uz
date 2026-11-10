@@ -68,9 +68,14 @@ export type Announcement = {
   text: string;
 };
 
+/** Расмий оқим бўлмаганда жонли эфирни тинглаш мумкин бўлган ташқи саҳифа */
+export type LiveFallback = { label: string; url: string };
+
 export type SiteContent = {
   profile: Profile;
+  /** Бўш бўлса — жонли эфир тугмалари liveFallback саҳифасига олиб боради */
   streams: StreamQuality[];
+  liveFallback?: LiveFallback | null;
   schedule: ScheduleSlot[];
   rubrics: string[];
   episodes: Episode[];

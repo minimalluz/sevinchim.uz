@@ -5,20 +5,37 @@ import type { Weekday } from "@/lib/types";
 import { WEEKDAYS, WEEKDAYS_SHORT, slotsForDay, tashkentNow } from "@/lib/format";
 import { usePlayer } from "./player/PlayerProvider";
 import { PlayPauseButton, QualitySelector, Spinner } from "./player/Controls";
-import { Equalizer, IconPause, IconPlay } from "./icons";
+import { Equalizer, IconExternal, IconPause, IconPlay } from "./icons";
 import { useOnAir, useSiteData } from "./SiteData";
 
 /** «FM Радиони тинглаш» тезкор тугмаси */
 export function ListenLiveButton({ className = "" }: { className?: string }) {
   const { track, status, playLive, toggle } = usePlayer();
+  const { hasStream, liveFallback } = useSiteData();
   const isLive = track?.kind === "live";
   const playing = isLive && status === "playing";
   const loading = isLive && status === "loading";
+  const cls = `group inline-flex min-h-14 items-center gap-3 rounded-full bg-brand-gradient py-2 pl-2 pr-6 text-base font-semibold text-white shadow-xl shadow-brand/25 transition hover:brightness-110 active:scale-[0.98] ${className}`;
+
+  // Расмий оқим уланмагунча — эфир ташқи платформада (янги ойнада)
+  if (!hasStream && liveFallback) {
+    return (
+      <a href={liveFallback.url} target="_blank" rel="noopener noreferrer" className={cls}>
+        <span className="grid size-10 place-items-center rounded-full bg-white text-brand">
+          <IconPlay width={20} height={20} className="translate-x-px" />
+        </span>
+        FM Радиони тинглаш
+        <IconExternal width={16} height={16} className="opacity-80" />
+        <span className="sr-only">({liveFallback.label}, янги ойнада)</span>
+      </a>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={() => (isLive ? toggle() : playLive())}
-      className={`group inline-flex min-h-14 items-center gap-3 rounded-full bg-brand-gradient py-2 pl-2 pr-6 text-base font-semibold text-white shadow-xl shadow-brand/25 transition hover:brightness-110 active:scale-[0.98] ${className}`}
+      className={cls}
     >
       <span className="grid size-10 place-items-center rounded-full bg-white text-brand">
         {loading ? <Spinner className="size-5 border-2" /> : playing ? <IconPause width={20} height={20} /> : <IconPlay width={20} height={20} className="translate-x-px" />}
@@ -80,8 +97,8 @@ export function NowOnAirCard({ compact = false }: { compact?: boolean }) {
 
 /** /fm-radio саҳифасидаги катта жонли эфир плеери */
 export function LivePlayerHero() {
-  const { track, status, error, playLive } = usePlayer();
-  const { name, station, frequency } = useSiteData();
+  const { track, status, error, playLive, qualities } = usePlayer();
+  const { name, station, frequency, hasStream, liveFallback } = useSiteData();
   const air = useOnAir();
   const isLive = track?.kind === "live";
   const playing = isLive && status === "playing";
@@ -104,7 +121,17 @@ export function LivePlayerHero() {
             </>
           )}
           <span className="absolute inset-3 rounded-full bg-brand-gradient opacity-90 blur-[2px]" aria-hidden />
-          {isLive ? (
+          {!hasStream && liveFallback ? (
+            <a
+              href={liveFallback.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Жонли эфирни ${liveFallback.label}'да тинглаш (янги ойнада)`}
+              className="relative grid size-28 place-items-center rounded-full bg-white text-bg shadow-xl transition active:scale-95"
+            >
+              <IconPlay width={40} height={40} className="translate-x-1" />
+            </a>
+          ) : isLive ? (
             <PlayPauseButton size="lg" className="relative size-28 bg-white" />
           ) : (
             <button
@@ -118,16 +145,45 @@ export function LivePlayerHero() {
           )}
         </div>
 
-        <p className="font-display text-lg font-bold" aria-live="polite">
-          {playing ? air?.current?.title ?? "Эфирдасиз" : status === "loading" && isLive ? "Уланмоқда…" : "Тинглаш учун босинг"}
-        </p>
-        {isLive && error && <p className="mt-2 max-w-sm text-sm text-live" role="status">{error}</p>}
+        {!hasStream ? (
+          liveFallback ? (
+            <>
+              <p className="font-display text-lg font-bold">Тинглаш учун босинг</p>
+              <p className="mt-2 max-w-sm text-sm text-muted">
+                Жонли эфир ҳозирча <b className="text-ink">{liveFallback.label}</b> платформасида, янги ойнада очилади.
+              </p>
+            </>
+          ) : (
+            <p className="max-w-sm text-sm text-muted">Онлайн эфир тез орада уланади. Ҳозирча радиони {frequency} тўлқинида тингланг.</p>
+          )
+        ) : (
+          <>
+            <p className="font-display text-lg font-bold" aria-live="polite">
+              {playing ? air?.current?.title ?? "Эфирдасиз" : status === "loading" && isLive ? "Уланмоқда…" : "Тинглаш учун босинг"}
+            </p>
+            {isLive && error && (
+              <p className="mt-2 max-w-sm text-sm text-live" role="status">
+                {error}
+                {liveFallback && (
+                  <>
+                    {" "}
+                    <a href={liveFallback.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink underline underline-offset-2">
+                      {liveFallback.label}'да тинглаш
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
+          </>
+        )}
 
-        <div className="mt-8 w-full max-w-md text-left">
-          <p className="mb-2 text-sm font-semibold text-muted">Овоз сифати</p>
-          <QualitySelector />
-          <p className="mt-2 text-xs text-muted">Мобил интернетда трафикни тежаш учун «Тежамкор» сифатни танланг.</p>
-        </div>
+        {hasStream && qualities.length > 1 && (
+          <div className="mt-8 w-full max-w-md text-left">
+            <p className="mb-2 text-sm font-semibold text-muted">Овоз сифати</p>
+            <QualitySelector />
+            <p className="mt-2 text-xs text-muted">Мобил интернетда трафикни тежаш учун «Тежамкор» сифатни танланг.</p>
+          </div>
+        )}
       </div>
     </section>
   );

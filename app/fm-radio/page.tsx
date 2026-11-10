@@ -14,10 +14,17 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function FmRadioPage() {
+export default async function FmRadioPage() {
+  const { streams, liveFallback } = await getContent();
+  const lead =
+    streams.length > 0
+      ? "Эфирни тўғридан-тўғри тингланг. Бошқа саҳифаларга ўтсангиз ҳам радио узилмайди."
+      : liveFallback?.url
+        ? `Жонли эфир ҳозирча ${liveFallback.label} платформасида — тугмани босинг, янги ойнада очилади.`
+        : "Онлайн эфир тез орада уланади.";
   return (
     <>
-      <PageHeader eyebrow="Жонли эфир" title="FM Радио" lead="Эфирни тўғридан-тўғри тингланг. Бошқа саҳифаларга ўтсангиз ҳам радио узилмайди." />
+      <PageHeader eyebrow="Жонли эфир" title="FM Радио" lead={lead} />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <LivePlayerHero />
         <div className="space-y-8">

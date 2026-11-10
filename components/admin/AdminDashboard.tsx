@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition, type ReactNode } from "react";
-import type { Announcement, Episode, ScheduleSlot, SiteContent, StreamQuality, Weekday } from "@/lib/types";
+import type { Announcement, Episode, LiveFallback, ScheduleSlot, SiteContent, StreamQuality, Weekday } from "@/lib/types";
 import { WEEKDAYS, formatDate, formatDuration } from "@/lib/format";
 import { UPLOAD_CHUNK } from "@/lib/audio";
 import {
@@ -82,7 +82,7 @@ export function AdminDashboard({ content }: { content: SiteContent }) {
       <div className="mt-6">
         {tab === "archive" && <ArchiveAdmin episodes={content.episodes} rubrics={content.rubrics} />}
         {tab === "schedule" && <ScheduleAdmin initial={content.schedule} />}
-        {tab === "stream" && <StreamAdmin initial={content.streams} />}
+        {tab === "stream" && <StreamAdmin initial={content.streams} fallback={content.liveFallback ?? null} />}
         {tab === "news" && <NewsAdmin initial={content.announcements} />}
       </div>
     </div>
@@ -350,32 +350,53 @@ function ScheduleAdmin({ initial }: { initial: ScheduleSlot[] }) {
 }
 
 /* ---------- FM радио оқими ---------- */
-function StreamAdmin({ initial }: { initial: StreamQuality[] }) {
+function StreamAdmin({ initial, fallback }: { initial: StreamQuality[]; fallback: LiveFallback | null }) {
   const [rows, setRows] = useState<StreamQuality[]>(initial);
+  const [fb, setFb] = useState<LiveFallback>(fallback ?? { label: "", url: "" });
   const saver = useSaver();
   const set = (i: number, patch: Partial<StreamQuality>) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   return (
-    <section className="rounded-[var(--radius-card)] border border-white/8 bg-surface p-5">
-      <h2 className="font-display text-lg font-bold">FM радио оқими ҳаволалари</h2>
-      <p className="mt-1 text-sm text-muted">
-        Icecast/Shoutcast (MP3/AAC) ёки HLS (.m3u8) манзилини киритинг. Биринчи қатор — асосий сифат. Сайт HTTPS'да бўлгани учун оқим манзили ҳам <b>https://</b> бўлиши керак.
-      </p>
-      <ul className="mt-4 grid gap-2">
-        {rows.map((s, i) => (
-          <li key={s.id} className="grid gap-2 rounded-2xl bg-bg/60 p-3 md:grid-cols-[10rem_7rem_1fr_auto] md:items-end">
-            <Field label="Номи"><input className={input} value={s.label} onChange={(e) => set(i, { label: e.target.value })} /></Field>
-            <Field label="Битрейт"><input className={input} value={s.bitrate} onChange={(e) => set(i, { bitrate: e.target.value })} /></Field>
-            <Field label="Оқим манзили (URL)">
-              <input className={input} type="url" inputMode="url" value={s.url} onChange={(e) => set(i, { url: e.target.value })} placeholder="https://…" />
-            </Field>
-            <button className={btnDanger} disabled={rows.length < 2} onClick={() => setRows((r) => r.filter((_, j) => j !== i))}>Ўчириш</button>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button className={btnGhost} onClick={() => setRows((r) => [...r, { id: tmpId(), label: "", bitrate: "", url: "" }])}>+ Сифат қўшиш</button>
-        <button className={btnPrimary} disabled={saver.pending} onClick={() => saver.run(() => saveStreams(rows))}>Сақлаш</button>
+    <section className="grid gap-6 rounded-[var(--radius-card)] border border-white/8 bg-surface p-5">
+      <div>
+        <h2 className="font-display text-lg font-bold">FM радио оқими ҳаволалари</h2>
+        <p className="mt-1 text-sm text-muted">
+          Радиостанциядан олинган расмий Icecast/Shoutcast (MP3/AAC) ёки HLS (.m3u8) манзилини киритинг. Биринчи қатор — асосий сифат.
+          Сайт HTTPS'да бўлгани учун оқим манзили ҳам <b>https://</b> бўлиши керак.
+        </p>
+        {rows.length === 0 && (
+          <p className="mt-3 rounded-xl bg-gold/10 px-3 py-2 text-sm text-gold">
+            Оқим ҳали киритилмаган — жонли эфир тугмалари пастдаги муқобил платформага олиб боради.
+          </p>
+        )}
+        <ul className="mt-4 grid gap-2">
+          {rows.map((s, i) => (
+            <li key={s.id} className="grid gap-2 rounded-2xl bg-bg/60 p-3 md:grid-cols-[10rem_7rem_1fr_auto] md:items-end">
+              <Field label="Номи"><input className={input} value={s.label} onChange={(e) => set(i, { label: e.target.value })} placeholder="Юқори сифат" /></Field>
+              <Field label="Битрейт"><input className={input} value={s.bitrate} onChange={(e) => set(i, { bitrate: e.target.value })} placeholder="128 kbps" /></Field>
+              <Field label="Оқим манзили (URL)">
+                <input className={input} type="url" inputMode="url" value={s.url} onChange={(e) => set(i, { url: e.target.value })} placeholder="https://…" />
+              </Field>
+              <button className={btnDanger} onClick={() => setRows((r) => r.filter((_, j) => j !== i))}>Ўчириш</button>
+            </li>
+          ))}
+        </ul>
+        <button className={`${btnGhost} mt-3`} onClick={() => setRows((r) => [...r, { id: tmpId(), label: "", bitrate: "", url: "" }])}>+ Оқим қўшиш</button>
+      </div>
+
+      <div className="border-t border-white/8 pt-5">
+        <h3 className="font-semibold">Муқобил тинглаш саҳифаси</h3>
+        <p className="mt-1 text-sm text-muted">Расмий оқим бўлмаганда «Жонли эфир» тугмалари шу саҳифани янги ойнада очади (масалан, Mediabay).</p>
+        <div className="mt-3 grid gap-2 md:grid-cols-[10rem_1fr]">
+          <Field label="Платформа номи"><input className={input} value={fb.label} onChange={(e) => setFb({ ...fb, label: e.target.value })} placeholder="Mediabay" /></Field>
+          <Field label="Ҳавола (URL)">
+            <input className={input} type="url" inputMode="url" value={fb.url} onChange={(e) => setFb({ ...fb, url: e.target.value })} placeholder="https://mediabay.uz/radio" />
+          </Field>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button className={btnPrimary} disabled={saver.pending} onClick={() => saver.run(() => saveStreams(rows, fb.url ? fb : null))}>Сақлаш</button>
         {saver.status}
       </div>
     </section>

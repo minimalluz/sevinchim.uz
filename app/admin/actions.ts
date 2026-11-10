@@ -10,7 +10,7 @@ import { SAFE_NAME } from "@/lib/audio";
 import {
   checkPassword, createSession, destroySession, loginFailed, loginThrottle, requireAdmin,
 } from "@/lib/auth";
-import type { Announcement, Episode, ScheduleSlot, StreamQuality, Weekday } from "@/lib/types";
+import type { Announcement, Episode, LiveFallback, ScheduleSlot, StreamQuality, Weekday } from "@/lib/types";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -55,20 +55,29 @@ export async function logout() {
 }
 
 /* ---------- FM радио оқими ---------- */
-export async function saveStreams(input: StreamQuality[]): Promise<ActionResult> {
+export async function saveStreams(input: StreamQuality[], fallback: LiveFallback | null): Promise<ActionResult> {
   return guard(async () => {
-    const streams = (Array.isArray(input) ? input : []).map((s) => ({
-      id: str(s.id, 40) || newId("q"),
-      label: str(s.label, 60),
-      bitrate: str(s.bitrate, 30),
-      url: str(s.url, 1000),
-    }));
-    if (streams.length === 0) throw new Error("Камида битта оқим манзили керак");
+    const streams = (Array.isArray(input) ? input : [])
+      .map((s) => ({
+        id: s.id && !String(s.id).startsWith("new-") ? str(s.id, 40) : newId("q"),
+        label: str(s.label, 60),
+        bitrate: str(s.bitrate, 30),
+        url: str(s.url, 1000),
+      }))
+      // Бутунлай бўш қатор — эътиборсиз
+      .filter((s) => s.label || s.bitrate || s.url);
     for (const s of streams) {
       if (!s.label) throw new Error("Сифат номини киритинг");
       if (!isUrl(s.url)) throw new Error(`Нотўғри манзил: ${s.url || "(бўш)"}`);
     }
-    await updateContent((c) => { c.streams = streams; });
+    const fbUrl = str(fallback?.url, 1000);
+    const fbLabel = str(fallback?.label, 60);
+    if (fbUrl && !isUrl(fbUrl)) throw new Error(`Нотўғри ҳавола: ${fbUrl}`);
+    if (fbUrl && !fbLabel) throw new Error("Муқобил платформа номини киритинг");
+    await updateContent((c) => {
+      c.streams = streams;
+      c.liveFallback = fbUrl ? { label: fbLabel, url: fbUrl } : null;
+    });
   });
 }
 

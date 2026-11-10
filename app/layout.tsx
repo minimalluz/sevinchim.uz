@@ -61,14 +61,23 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const { profile, streams, schedule } = await getContent();
+  const { profile, streams, schedule, liveFallback } = await getContent();
   return (
     <html lang="uz-Cyrl" className={`${inter.variable} ${unbounded.variable}`}>
       <body>
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-xl focus:bg-ink focus:px-4 focus:py-2 focus:text-bg">
           Асосий қисмга ўтиш
         </a>
-        <SiteDataProvider value={{ name: profile.name, station: profile.station, frequency: profile.frequency, schedule }}>
+        <SiteDataProvider
+          value={{
+            name: profile.name,
+            station: profile.station,
+            frequency: profile.frequency,
+            schedule,
+            hasStream: streams.length > 0,
+            liveFallback: liveFallback?.url ? liveFallback : null,
+          }}
+        >
           <PlayerProvider streams={streams} hostName={profile.name} station={profile.station}>
             <SiteHeader name={profile.name} />
             <main id="main" className="page-pad mx-auto max-w-6xl px-4">

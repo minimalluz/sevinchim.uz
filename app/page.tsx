@@ -52,7 +52,7 @@ export default async function HomePage() {
           <div className="absolute bottom-3 left-3 md:-bottom-4 md:left-auto md:right-6 md:w-[min(20rem,90%)]">
             <div className="rounded-2xl border border-white/10 bg-surface-2/85 px-3 py-2 text-left shadow-xl backdrop-blur md:px-4 md:py-3 md:text-center">
               <p className="font-display text-lg font-extrabold md:text-2xl">{profile.frequency}</p>
-              <p className="text-xs text-muted">{profile.station}да тингланг</p>
+              <p className="text-xs text-muted">«{profile.station}» радиосида тингланг</p>
             </div>
           </div>
         </div>

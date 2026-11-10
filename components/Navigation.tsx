@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconArchive, IconHome, IconImage, IconRadio, IconUser, Equalizer } from "./icons";
 import { usePlayer } from "./player/PlayerProvider";
+import { useSiteData } from "./SiteData";
 
 export const NAV = [
   { href: "/", label: "Бош саҳифа", icon: IconHome },
@@ -18,7 +19,10 @@ const isActive = (path: string, href: string) => (href === "/" ? path === "/" : 
 export function SiteHeader({ name }: { name: string }) {
   const path = usePathname();
   const { track, status, playLive, toggle } = usePlayer();
+  const { hasStream, liveFallback } = useSiteData();
   const liveOn = track?.kind === "live" && status === "playing";
+  const liveBtn =
+    "ml-auto inline-flex min-h-11 items-center gap-2 rounded-full bg-live/15 px-4 text-sm font-semibold text-live transition hover:bg-live/25 md:ml-0";
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/5 bg-bg/80 backdrop-blur-xl">
@@ -46,15 +50,29 @@ export function SiteHeader({ name }: { name: string }) {
           })}
         </nav>
 
-        <button
-          type="button"
-          onClick={() => (track?.kind === "live" ? toggle() : playLive())}
-          className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-full bg-live/15 px-4 text-sm font-semibold text-live transition hover:bg-live/25 md:ml-0"
-          aria-pressed={liveOn}
-        >
-          {liveOn ? <Equalizer /> : <span className="size-2 rounded-full bg-live animate-pulse-dot" />}
-          Жонли эфир
-        </button>
+        {hasStream ? (
+          <button
+            type="button"
+            onClick={() => (track?.kind === "live" ? toggle() : playLive())}
+            className={liveBtn}
+            aria-pressed={liveOn}
+          >
+            {liveOn ? <Equalizer /> : <span className="size-2 rounded-full bg-live animate-pulse-dot" />}
+            Жонли эфир
+          </button>
+        ) : liveFallback ? (
+          // Расмий оқим уланмагунча — жонли эфир ташқи платформада
+          <a href={liveFallback.url} target="_blank" rel="noopener noreferrer" className={liveBtn}>
+            <span className="size-2 rounded-full bg-live animate-pulse-dot" />
+            Жонли эфир
+            <span className="sr-only"> ({liveFallback.label}, янги ойнада)</span>
+          </a>
+        ) : (
+          <Link href="/fm-radio" className={liveBtn}>
+            <span className="size-2 rounded-full bg-live animate-pulse-dot" />
+            Жонли эфир
+          </Link>
+        )}
       </div>
     </header>
   );

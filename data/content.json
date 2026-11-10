@@ -2,8 +2,8 @@
   "profile": {
     "name": "Севинч",
     "role": "Радио бошловчи",
-    "station": "Радио FM",
-    "frequency": "100.0 FM",
+    "station": "Эхо долины",
+    "frequency": "102.7 FM",
     "tagline": "Ҳар тонг сиз билан — яхши кайфият, севимли қўшиқлар ва самимий суҳбатлар.",
     "photo": "/media/host.svg",
     "bio": [
@@ -30,10 +30,8 @@
       { "label": "YouTube", "url": "https://youtube.com/@sevinchim" }
     ]
   },
-  "streams": [
-    { "id": "hq", "label": "Юқори сифат", "bitrate": "128 kbps", "url": "https://stream.example.uz/radio-128.mp3" },
-    { "id": "lq", "label": "Тежамкор", "bitrate": "64 kbps", "url": "https://stream.example.uz/radio-64.mp3" }
-  ],
+  "streams": [],
+  "liveFallback": { "label": "Mediabay", "url": "https://mediabay.uz/radio" },
   "schedule": [
     { "id": "s1", "day": 1, "start": "08:00", "end": "10:00", "title": "Тонги кайфият", "own": true },
     { "id": "s2", "day": 2, "start": "08:00", "end": "10:00", "title": "Тонги кайфият", "own": true },
