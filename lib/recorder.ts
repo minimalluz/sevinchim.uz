@@ -171,6 +171,13 @@ function spawnPart() {
   });
 }
 
+/** Telegram ботга хабар (бот уланмаган бўлса ҳеч нарса қилмайди) */
+function notify(r: Parameters<typeof import("./telegram").notifyRecordingFinished>[0]) {
+  void import("./telegram")
+    .then((m) => m.notifyRecordingFinished(r))
+    .catch((e) => console.error("[telegram] notify:", e));
+}
+
 /** Ёзилган қисмларни битта файлга йиғиб, архивга қоралама қўшиш */
 function finalize(note?: string): Promise<void> {
   if (rt.finalizing) return rt.finalizing;
@@ -185,6 +192,7 @@ function finalize(note?: string): Promise<void> {
       for (const p of s.parts) if ((await fileSize(p)) > 0) parts.push(p);
       if (parts.length === 0) {
         rt.lastError = "Ҳеч нарса ёзилмади: радио оқимига уланиб бўлмади. Оқим манзилини текширинг.";
+        notify({ ok: false, error: rt.lastError });
         return;
       }
 
@@ -222,6 +230,7 @@ function finalize(note?: string): Promise<void> {
         if (!c.rubrics.includes(s.rubric)) c.rubrics.push(s.rubric);
       });
       rt.lastDraft = { id, title };
+      notify({ ok: true, id, title, duration, note });
       if (!note && rt.reconnects === 0) rt.lastError = null;
     } finally {
       rt.state = null;

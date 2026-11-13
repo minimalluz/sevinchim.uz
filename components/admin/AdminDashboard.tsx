@@ -9,7 +9,8 @@ import { UPLOAD_CHUNK } from "@/lib/audio";
 import {
   addEpisode, deleteEpisode, logout, publishEpisode, recordingStatusAction, saveAnnouncements, saveSchedule,
   saveStreams, startRecordingAction, stopRecordingAction, updateEpisode,
-  type ActionResult,
+  telegramConnectAction, telegramDisconnectAction, telegramInfoAction, telegramLinkCodeAction, telegramRemoveAdminAction,
+  type ActionResult, type TelegramInfo,
 } from "@/app/admin/actions";
 
 /* ---------- Умумий элементлар ---------- */
@@ -56,6 +57,7 @@ const TABS = [
   { id: "schedule", label: "Эфир жадвали" },
   { id: "stream", label: "FM оқим" },
   { id: "news", label: "Анонслар" },
+  { id: "telegram", label: "Telegram" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
 
@@ -94,6 +96,7 @@ export function AdminDashboard({ content }: { content: SiteContent }) {
         {tab === "schedule" && <ScheduleAdmin initial={content.schedule} />}
         {tab === "stream" && <StreamAdmin initial={content.streams} fallback={content.liveFallback ?? null} />}
         {tab === "news" && <NewsAdmin initial={content.announcements} />}
+        {tab === "telegram" && <TelegramAdmin />}
       </div>
     </div>
   );
@@ -588,6 +591,112 @@ function NewsAdmin({ initial }: { initial: Announcement[] }) {
         </button>
         {saver.status}
       </div>
+    </section>
+  );
+}
+
+/* ---------- Telegram бот ---------- */
+function TelegramAdmin() {
+  const [info, setInfo] = useState<TelegramInfo | null>(null);
+  const [token, setToken] = useState("");
+  const [code, setCode] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<ActionResult | null>(null);
+
+  const load = useCallback(async () => setInfo(await telegramInfoAction()), []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  // Код кўрсатилаётганда — янги уланганларни кўриш учун рўйхатни янгилаб турамиз
+  useEffect(() => {
+    if (!code) return;
+    const id = setInterval(() => void load(), 4000);
+    return () => clearInterval(id);
+  }, [code, load]);
+
+  const run = async (fn: () => Promise<ActionResult>) => {
+    setBusy(true);
+    setMsg(null);
+    const r = await fn();
+    setMsg(r);
+    await load();
+    setBusy(false);
+    return r;
+  };
+
+  if (!info) return <div className="h-40 animate-pulse rounded-[var(--radius-card)] bg-surface" />;
+
+  return (
+    <section className="grid gap-6 rounded-[var(--radius-card)] border border-white/8 bg-surface p-5">
+      <div>
+        <h2 className="font-display text-lg font-bold">Telegram бот</h2>
+        <p className="mt-1 text-sm text-muted">
+          Эфир ёзишни телефондан бир босишда бошқариш: «● Ёзишни бошлаш», «■ Тўхтатиш», «ℹ️ Ҳолат». Ёзув тугагач, бот хабар юборади ва «Чоп этиш» тугмасини беради.
+        </p>
+      </div>
+
+      {!info.connected ? (
+        <div className="grid gap-4">
+          <ol className="grid list-decimal gap-1 pl-5 text-sm text-muted">
+            <li>Telegram'да <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand">@BotFather</a> ни очинг ва <b className="text-ink">/newbot</b> юборинг.</li>
+            <li>Бот номини (масалан, «Севинчим ёзув») ва username'ини (охири <b className="text-ink">bot</b> билан тугасин) ёзинг.</li>
+            <li>BotFather берган калитни (<code className="text-ink">123456789:AA…</code>) пастга қўйинг.</li>
+          </ol>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Бот калити (token)" className="min-w-64 flex-1">
+              <input className={input} value={token} onChange={(e) => setToken(e.target.value)} placeholder="123456789:AA…" autoComplete="off" spellCheck={false} />
+            </Field>
+            <button className={btnPrimary} disabled={busy || !token.trim()} onClick={async () => { const r = await run(() => telegramConnectAction(token)); if (r.ok) setToken(""); }}>
+              {busy ? "Уланмоқда…" : "Улаш"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-5">
+          <p className="text-sm">
+            ✅ Бот уланган:{" "}
+            <a href={`https://t.me/${info.username}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-brand">@{info.username}</a>
+          </p>
+
+          <div>
+            <h3 className="font-semibold">Бошқарувчилар</h3>
+            {info.admins.length === 0 ? (
+              <p className="mt-1 text-sm text-gold">Ҳали ҳеч ким уланмаган — пастдаги тугма билан ўзингизни уланг.</p>
+            ) : (
+              <ul className="mt-2 grid gap-2">
+                {info.admins.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl bg-bg/60 px-4 py-2">
+                    <span>{a.name} <span className="text-xs text-muted">({a.id})</span></span>
+                    <button className={btnDanger} disabled={busy} onClick={() => confirm(`${a.name} бот бошқарувидан олиб ташлансинми?`) && run(() => telegramRemoveAdminAction(a.id))}>Ўчириш</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-white/8 bg-bg/60 p-4">
+            {code ? (
+              <div className="grid gap-3">
+                <p className="text-sm text-muted">Телефонда шу тугмани босинг — бот очилади ва ўзи уланади. Ёки ботга кодни юборинг (10 дақиқа амал қилади):</p>
+                <p className="font-display text-4xl font-extrabold tracking-[0.3em]">{code}</p>
+                <a href={`https://t.me/${info.username}?start=${code}`} target="_blank" rel="noopener noreferrer" className={`${btnPrimary} justify-self-start`}>
+                  Ботни очиш ва улаш
+                </a>
+              </div>
+            ) : (
+              <button className={btnGhost} disabled={busy} onClick={async () => { const r = await telegramLinkCodeAction(); if (r) setCode(r.code); }}>
+                + Telegram аккаунтни улаш (код олиш)
+              </button>
+            )}
+          </div>
+
+          <button className={`${btnDanger} justify-self-start`} disabled={busy} onClick={() => confirm("Ботни узайми? Бошқарувчилар рўйхати ҳам ўчади.") && run(() => telegramDisconnectAction())}>
+            Ботни узиш
+          </button>
+        </div>
+      )}
+
+      {msg && <p role="status" className={`text-sm font-semibold ${msg.ok ? "text-mint" : "text-live"}`}>{msg.ok ? `✓ ${msg.message}` : msg.error}</p>}
     </section>
   );
 }

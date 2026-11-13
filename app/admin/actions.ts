@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { AUDIO_DIR, updateContent } from "@/lib/content";
 import { SAFE_NAME } from "@/lib/audio";
 import * as recorder from "@/lib/recorder";
+import * as telegram from "@/lib/telegram";
 import {
   checkPassword, createSession, destroySession, loginFailed, loginThrottle, requireAdmin,
 } from "@/lib/auth";
@@ -152,6 +153,58 @@ export async function publishEpisode(id: string): Promise<ActionResult> {
       delete ep.draft;
     });
   });
+}
+
+/* ---------- Telegram бот ---------- */
+export type TelegramInfo = { connected: boolean; username?: string; admins: { id: number; name: string }[] };
+
+export async function telegramInfoAction(): Promise<TelegramInfo | null> {
+  try {
+    await requireAdmin();
+    const s = await telegram.getSettings();
+    return s ? { connected: true, username: s.username, admins: s.admins } : { connected: false, admins: [] };
+  } catch {
+    return null;
+  }
+}
+
+export async function telegramConnectAction(token: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const { username } = await telegram.connectBot(str(token, 200));
+    return { ok: true, message: `@${username} уланди` };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
+}
+
+export async function telegramDisconnectAction(): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    await telegram.disconnectBot();
+    return { ok: true, message: "Бот узилди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
+}
+
+export async function telegramLinkCodeAction(): Promise<{ code: string } | null> {
+  try {
+    await requireAdmin();
+    return { code: telegram.createLinkCode() };
+  } catch {
+    return null;
+  }
+}
+
+export async function telegramRemoveAdminAction(id: number): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    await telegram.removeAdmin(Number(id));
+    return { ok: true, message: "Ўчирилди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
 }
 
 /* ---------- Эфирни ёзиб олиш ---------- */
