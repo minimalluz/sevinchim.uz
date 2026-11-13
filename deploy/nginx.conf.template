@@ -5,7 +5,15 @@ server {
     listen 80;
     listen [::]:80;
     server_name __DOMAIN__ www.__DOMAIN__;
-    return 301 https://__DOMAIN__$request_uri;
+
+    # Let's Encrypt текшируви (тўғридан-тўғри режим учун)
+    location /.well-known/acme-challenge/ {
+        root __ACME_ROOT__;
+    }
+
+    location / {
+        return 301 https://__DOMAIN__$request_uri;
+    }
 }
 
 server {

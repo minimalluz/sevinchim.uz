@@ -10,7 +10,7 @@
 #  .env ва юкланган аудиолар сақланиб қолади.
 #
 #  Ихтиёрий ўзгарувчилар: DOMAIN, REPO_URL, BRANCH, APP_DIR, DATA_DIR,
-#  APP_USER, ADMIN_PASSWORD (сўралмаслиги учун).
+#  APP_USER, ADMIN_PASSWORD (сўралмаслиги учун), SERVER_IP (IP қўлда).
 # =============================================================================
 set -euo pipefail
 
@@ -151,65 +151,118 @@ ok "Сайт ишлаяпти (127.0.0.1:3000)"
 
 # -----------------------------------------------------------------------------
 step "8/8 Nginx ва HTTPS"
+IP="${SERVER_IP:-$(curl -fsS4 --max-time 10 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')}"
 CF_CERT="/etc/ssl/cloudflare/$DOMAIN.pem"
 CF_KEY="/etc/ssl/cloudflare/$DOMAIN.key"
-if $SUDO test -s "$CF_CERT" && $SUDO test -s "$CF_KEY"; then
-  CERT="$CF_CERT"; KEY="$CF_KEY"; SSL_MODE="Full (strict)"
-  ok "Cloudflare Origin сертификати ишлатилади"
-else
-  CERT="/etc/ssl/sevinchim/$DOMAIN.crt"; KEY="/etc/ssl/sevinchim/$DOMAIN.key"; SSL_MODE="Full"
-  if ! $SUDO test -s "$CERT"; then
-    $SUDO mkdir -p /etc/ssl/sevinchim
-    $SUDO openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -subj "/CN=$DOMAIN" \
-      -addext "subjectAltName=DNS:$DOMAIN,DNS:www.$DOMAIN" \
-      -keyout "$KEY" -out "$CERT" >/dev/null 2>&1
-    $SUDO chmod 600 "$KEY"
-  fi
-  ok "Ўз-ўзига имзоланган сертификат (Cloudflare «Full» режими учун)"
-fi
+LE_DIR="/etc/letsencrypt/live/$DOMAIN"
+SELF_CERT="/etc/ssl/sevinchim/$DOMAIN.crt"
+SELF_KEY="/etc/ssl/sevinchim/$DOMAIN.key"
+ACME_ROOT=/var/www/letsencrypt
+$SUDO mkdir -p "$ACME_ROOT"
 
-# Cloudflare орқасида тингловчининг ҳақиқий IP манзили
+# Домен (ва www) шу серверга тўғридан-тўғри кўрсатяптими? (Cloudflare прокси бўлса — йўқ)
+resolves_here() { [ "$(getent ahostsv4 "$1" 2>/dev/null | awk 'NR==1{print $1}')" = "$IP" ]; }
+
+pick_cert() {
+  if $SUDO test -s "$CF_CERT" && $SUDO test -s "$CF_KEY"; then
+    CERT="$CF_CERT"; KEY="$CF_KEY"; MODE="cloudflare-strict"
+  elif $SUDO test -s "$LE_DIR/fullchain.pem"; then
+    CERT="$LE_DIR/fullchain.pem"; KEY="$LE_DIR/privkey.pem"; MODE="direct"
+  else
+    CERT="$SELF_CERT"; KEY="$SELF_KEY"; MODE="cloudflare"
+    if ! $SUDO test -s "$CERT"; then
+      $SUDO mkdir -p /etc/ssl/sevinchim
+      $SUDO openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -subj "/CN=$DOMAIN" \
+        -addext "subjectAltName=DNS:$DOMAIN,DNS:www.$DOMAIN" \
+        -keyout "$KEY" -out "$CERT" >/dev/null 2>&1
+      $SUDO chmod 600 "$KEY"
+    fi
+  fi
+}
+
+render_nginx() {
+  # Серверда IPv6 ўчирилган бўлса, «listen [::]» қаторларини олиб ташлаймиз
+  local ipv6_filter='s/^\(.*listen \[::\].*\)$/\1/'
+  [ -f /proc/net/if_inet6 ] || ipv6_filter='/listen \[::\]/d'
+  sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__CERT__|$CERT|g" -e "s|__KEY__|$KEY|g" \
+      -e "s|__ACME_ROOT__|$ACME_ROOT|g" -e "$ipv6_filter" \
+    "$APP_DIR/deploy/nginx.conf.template" | $SUDO tee "/etc/nginx/sites-available/$DOMAIN" >/dev/null
+  $SUDO ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
+  $SUDO rm -f /etc/nginx/sites-enabled/default
+  $SUDO nginx -t -q || die "Nginx конфигурациясида хато"
+  $SUDO systemctl enable nginx >/dev/null 2>&1 || true
+  $SUDO systemctl reload nginx 2>/dev/null || $SUDO systemctl restart nginx
+}
+
+# Cloudflare орқасида тингловчининг ҳақиқий IP манзили (тўғридан-тўғри режимга зарар қилмайди)
 cf_ips=$( { curl -fsS --max-time 15 https://www.cloudflare.com/ips-v4 || true; echo; \
             curl -fsS --max-time 15 https://www.cloudflare.com/ips-v6 || true; echo; } \
           | grep -E '^[0-9a-fA-F:.]+/[0-9]+$' || true)
 if [ -n "$cf_ips" ]; then
   { printf '%s\n' "$cf_ips" | sed 's/.*/set_real_ip_from &;/'; echo 'real_ip_header CF-Connecting-IP;'; } \
     | $SUDO tee /etc/nginx/conf.d/cloudflare-realip.conf >/dev/null
-  ok "Cloudflare IP рўйхати қўшилди"
-else
-  warn "Cloudflare IP рўйхатини юклаб бўлмади — кейин скриптни қайта ишга туширинг"
 fi
 
-# Серверда IPv6 ўчирилган бўлса, «listen [::]» қаторларини олиб ташлаймиз
-ipv6_filter='s/^\(.*listen \[::\].*\)$/\1/'
-[ -f /proc/net/if_inet6 ] || ipv6_filter='/listen \[::\]/d'
-sed -e "s|__DOMAIN__|$DOMAIN|g" -e "s|__CERT__|$CERT|g" -e "s|__KEY__|$KEY|g" -e "$ipv6_filter" \
-  "$APP_DIR/deploy/nginx.conf.template" | $SUDO tee "/etc/nginx/sites-available/$DOMAIN" >/dev/null
-$SUDO ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
-$SUDO rm -f /etc/nginx/sites-enabled/default
-$SUDO nginx -t -q || die "Nginx конфигурациясида хато"
-$SUDO systemctl enable nginx >/dev/null 2>&1 || true
-$SUDO systemctl reload nginx 2>/dev/null || $SUDO systemctl restart nginx
+pick_cert
+render_nginx
+
+# Тўғридан-тўғри режим: Let's Encrypt сертификатини олиш (бир марта; кейин ўзи янгиланади)
+if [ "$MODE" = "cloudflare" ] && resolves_here "$DOMAIN"; then
+  domains=(-d "$DOMAIN")
+  resolves_here "www.$DOMAIN" && domains+=(-d "www.$DOMAIN")
+  $SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq certbot >/dev/null
+  if $SUDO certbot certonly --webroot -w "$ACME_ROOT" "${domains[@]}" --non-interactive --agree-tos \
+       --register-unsafely-without-email --deploy-hook "systemctl reload nginx" >/tmp/sevinchim-certbot.log 2>&1; then
+    pick_cert
+    render_nginx
+    ok "Let's Encrypt сертификати олинди (ҳар 3 ойда ўзи янгиланади)"
+  else
+    warn "Let's Encrypt сертификатини олиб бўлмади (журнал: /tmp/sevinchim-certbot.log) — вақтинча ўз-ўзига имзоланган"
+  fi
+fi
+
+case "$MODE" in
+  direct) ok "Режим: тўғридан-тўғри (Let's Encrypt)";;
+  cloudflare-strict) ok "Режим: Cloudflare прокси, Origin сертификати";;
+  *) ok "Режим: Cloudflare прокси (ўз-ўзига имзоланган сертификат)";;
+esac
+
 code=$(curl -sk --noproxy '*' -o /dev/null -w '%{http_code}' --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/" || true)
 [ "$code" = 200 ] || die "Nginx орқали сайт очилмади (HTTP $code)"
 ok "Nginx орқали HTTPS ишлаяпти"
 
 # -----------------------------------------------------------------------------
-IP=$(curl -fsS4 --max-time 10 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
+if [ "$MODE" = "direct" ]; then
+cat <<EOF
+
+$(printf '\033[1;32m')Тайёр! Сайт ишлаяпти: https://$DOMAIN$(printf '\033[0m')
+
+Режим: тўғридан-тўғри (TAS-IX), Let's Encrypt сертификати.
+Админ-панел:  https://$DOMAIN/admin
+
+Сайтни янгилаш учун шу скриптни қайта ишга туширинг.
+EOF
+else
 cat <<EOF
 
 $(printf '\033[1;32m')Тайёр! Сервер созланди.$(printf '\033[0m')
 
 Сервер IP манзили:  $IP
 
-Cloudflare'да (dash.cloudflare.com → $DOMAIN):
-  1. DNS → Records:
-       A   @     $IP   (Proxied, тўқ сариқ булут)
-       A   www   $IP   (Proxied)
-  2. SSL/TLS → Overview → режим: $SSL_MODE
-  3. SSL/TLS → Edge Certificates → Always Use HTTPS: ёқилган
+DNS (dash.cloudflare.com → $DOMAIN → DNS → Records), икки йўлдан бири:
 
-Кейин:  https://$DOMAIN        Админ-панел:  https://$DOMAIN/admin
+ A) Тўғридан-тўғри (тавсия, TAS-IX учун тезроқ):
+       A   @     $IP   DNS only (кулранг булут)
+       A   www   $IP   DNS only (кулранг булут)
+    DNS янгилангач, шу скриптни ҚАЙТА ишга туширинг — Let's Encrypt
+    сертификати ўзи олинади.
 
+ B) Cloudflare прокси орқали:
+       A   @     $IP   Proxied (тўқ сариқ булут)
+       A   www   $IP   Proxied
+    SSL/TLS → Overview → режим: Full
+
+Админ-панел:  https://$DOMAIN/admin
 Сайтни янгилаш учун шу скриптни қайта ишга туширинг.
 EOF
+fi
