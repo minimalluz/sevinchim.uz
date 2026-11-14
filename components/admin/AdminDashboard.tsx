@@ -10,7 +10,8 @@ import {
   addEpisode, deleteEpisode, logout, publishEpisode, recordingStatusAction, saveAnnouncements, saveSchedule,
   saveStreams, startRecordingAction, stopRecordingAction, updateEpisode,
   telegramConnectAction, telegramDisconnectAction, telegramInfoAction, telegramLinkCodeAction, telegramRemoveAdminAction,
-  type ActionResult, type TelegramInfo,
+  fm90DeleteAction, fm90InfoAction, fm90SaveSettingsAction, fm90StartAction, fm90StatusAction, fm90StopAction,
+  type ActionResult, type TelegramInfo, type Fm90Info,
 } from "@/app/admin/actions";
 
 /* ---------- Умумий элементлар ---------- */
@@ -57,6 +58,7 @@ const TABS = [
   { id: "schedule", label: "Эфир жадвали" },
   { id: "stream", label: "FM оқим" },
   { id: "news", label: "Анонслар" },
+  { id: "fm90", label: "FM90.8" },
   { id: "telegram", label: "Telegram" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
@@ -96,6 +98,7 @@ export function AdminDashboard({ content }: { content: SiteContent }) {
         {tab === "schedule" && <ScheduleAdmin initial={content.schedule} />}
         {tab === "stream" && <StreamAdmin initial={content.streams} fallback={content.liveFallback ?? null} />}
         {tab === "news" && <NewsAdmin initial={content.announcements} />}
+        {tab === "fm90" && <Fm90Admin />}
         {tab === "telegram" && <TelegramAdmin />}
       </div>
     </div>
@@ -698,5 +701,172 @@ function TelegramAdmin() {
 
       {msg && <p role="status" className={`text-sm font-semibold ${msg.ok ? "text-mint" : "text-live"}`}>{msg.ok ? `✓ ${msg.message}` : msg.error}</p>}
     </section>
+  );
+}
+
+/* ---------- FM 90.8: алоҳида лойиҳа учун ёзувлар ---------- */
+const mb = (b: number) => (b / 1048576).toFixed(1) + " МБ";
+const gb = (b: number) => (b / 1024 ** 3).toFixed(1) + " ГБ";
+const tashkentStamp = (ms: number) => new Date(ms + 5 * 3600e3).toISOString().slice(0, 16).replace("T", " ");
+
+function Fm90Admin() {
+  const [info, setInfo] = useState<Fm90Info | null>(null);
+  const [status, setStatus] = useState<RecordingStatus | null>(null);
+  const [url, setUrl] = useState("");
+  const [maxMin, setMaxMin] = useState(210);
+  const [now, setNow] = useState(() => Date.now());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<ActionResult | null>(null);
+  // Хабар қайси бўлимда кўрсатилиши: ёзиш, созламалар ёки файллар
+  const [msgAt, setMsgAt] = useState<"rec" | "settings" | "files">("rec");
+  const wasActive = useRef(false);
+
+  const load = useCallback(async () => {
+    const i = await fm90InfoAction();
+    if (i) setInfo(i);
+    return i;
+  }, []);
+
+  useEffect(() => {
+    void load().then((i) => {
+      if (i) {
+        setUrl(i.settings.streamUrl);
+        setMaxMin(i.settings.maxMinutes);
+      }
+    });
+  }, [load]);
+
+  const poll = useCallback(async () => {
+    const st = await fm90StatusAction();
+    if (!st) return;
+    setStatus(st);
+    if (wasActive.current && !st.active && !st.finalizing) void load();
+    wasActive.current = st.active || st.finalizing;
+  }, [load]);
+
+  useEffect(() => {
+    void poll();
+    const id = setInterval(() => void poll(), status?.active || status?.finalizing ? 3000 : 15000);
+    return () => clearInterval(id);
+  }, [poll, status?.active, status?.finalizing]);
+
+  useEffect(() => {
+    if (!status?.active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [status?.active]);
+
+  const act = async (fn: () => Promise<ActionResult>, at: "rec" | "settings" | "files" = "rec") => {
+    setBusy(true);
+    setMsg(null);
+    setMsgAt(at);
+    const r = await fn();
+    setMsg(r);
+    await Promise.all([poll(), load()]);
+    setBusy(false);
+  };
+
+  if (!info) return <div className="h-40 animate-pulse rounded-[var(--radius-card)] bg-surface" />;
+  const active = status?.active;
+  const elapsed = active && status?.startedAt ? Math.max(0, (now - status.startedAt) / 1000) : 0;
+
+  return (
+    <div className="grid gap-6">
+      <section className={`rounded-[var(--radius-card)] border p-5 ${active ? "border-live/60 bg-live/[0.07]" : "border-white/8 bg-surface"}`} aria-label="FM90.8 ёзиш">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg font-bold">FM 90.8 — ёзиш</h2>
+          {active && (
+            <span className="inline-flex items-center gap-2 rounded-full bg-live px-3 py-1 text-xs font-bold text-white">
+              <span className="size-2 rounded-full bg-white animate-pulse-dot" /> ЁЗИЛМОҚДА
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-sm text-muted">
+          Ёзувлар серверда алоҳида <code className="text-ink">FM90</code> папкасига тушади, сайтда кўринмайди. Telegram ботда «● FM90.8 ёзиш» / «■ FM90.8 тўхтатиш» тугмалари билан ҳам бошқарилади.
+        </p>
+
+        {!status ? (
+          <div className="mt-4 h-16 animate-pulse rounded-2xl bg-white/5" />
+        ) : status.finalizing ? (
+          <p className="mt-4 text-muted" role="status">Ёзув сақланмоқда…</p>
+        ) : active ? (
+          <div className="mt-4 grid gap-4">
+            <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
+              <p className="font-display text-5xl font-extrabold tabular-nums">{formatTime(elapsed)}</p>
+              <div className="text-sm text-muted">
+                <p>{mb(status.bytes ?? 0)} ёзилди</p>
+                <p>Автоматик тўхтайди: {clock((status.startedAt ?? 0) + status.maxSeconds * 1000)} да</p>
+              </div>
+            </div>
+            {!status.connected && <p className="text-sm text-gold" role="status">Оқимга қайта уланмоқда…</p>}
+            <button className={`${btn} min-h-14 bg-ink px-8 text-base text-bg`} disabled={busy} onClick={() => confirm("FM90.8 ёзувини тўхтатайми?") && act(fm90StopAction)}>
+              ■ Тўхтатиш ва сақлаш
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4">
+            {!info.settings.streamUrl ? (
+              <p className="rounded-xl bg-gold/10 px-3 py-2 text-sm text-gold">Ёзиш учун аввал пастда FM 90.8 оқим манзилини киритинг.</p>
+            ) : (
+              <button className={`${btn} min-h-14 bg-live px-8 text-base text-white`} disabled={busy} onClick={() => act(fm90StartAction)}>
+                ● Ёзишни бошлаш
+              </button>
+            )}
+          </div>
+        )}
+        {status?.lastDraft && !active && <p className="mt-3 text-sm font-semibold text-mint">✓ Сақланди: {status.lastDraft.title}</p>}
+        {status?.lastError && <p className="mt-2 text-sm text-gold">{status.lastError}</p>}
+        {msg && !msg.ok && msgAt === "rec" && <p className="mt-2 text-sm font-semibold text-live" role="alert">{msg.error}</p>}
+      </section>
+
+      <section className="rounded-[var(--radius-card)] border border-white/8 bg-surface p-5">
+        <h2 className="font-display text-lg font-bold">Созламалар</h2>
+        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_12rem_auto] md:items-end">
+          <Field label="FM 90.8 оқим манзили (Icecast / HLS)">
+            <input className={input} type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+          </Field>
+          <Field label="Энг кўп давомийлик (дақиқа)">
+            <input className={input} type="number" min={1} max={720} value={maxMin} onChange={(e) => setMaxMin(Number(e.target.value))} />
+          </Field>
+          <button className={btnPrimary} disabled={busy} onClick={() => act(() => fm90SaveSettingsAction(url, maxMin), "settings")}>Сақлаш</button>
+        </div>
+        <p className="mt-2 text-xs text-muted">Тўхтатиш эсдан чиқса, ёзув шу вақтдан кейин ўзи тўхтайди.</p>
+        {msg && msgAt === "settings" && (
+          <p className={`mt-2 text-sm font-semibold ${msg.ok ? "text-mint" : "text-live"}`} role="status">{msg.ok ? `✓ ${msg.message}` : msg.error}</p>
+        )}
+      </section>
+
+      <section className="rounded-[var(--radius-card)] border border-white/8 bg-surface p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-lg font-bold">FM90 папкаси ({info.files.length})</h2>
+          <span className="text-xs text-muted">Серверда бўш жой: {gb(info.disk.free)} / {gb(info.disk.total)}</span>
+        </div>
+        {msg && msgAt === "files" && (
+          <p className={`mt-2 text-sm font-semibold ${msg.ok ? "text-mint" : "text-live"}`} role="status">{msg.ok ? `✓ ${msg.message}` : msg.error}</p>
+        )}
+        {info.files.length === 0 ? (
+          <p className="mt-3 text-sm text-muted">Ҳали ёзув йўқ.</p>
+        ) : (
+          <ul className="mt-3 grid gap-2">
+            {info.files.map((f) => (
+              <li key={f.name} className="flex flex-wrap items-center gap-3 rounded-2xl bg-bg/60 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{f.name}</p>
+                  <p className="text-xs text-muted">
+                    {tashkentStamp(f.startedAt)} • {f.duration ? formatTime(f.duration) : "—"} • {mb(f.size)}
+                    {f.note && <span className="text-gold"> • {f.note}</span>}
+                  </p>
+                </div>
+                <audio controls preload="none" src={`/api/admin/fm90/${encodeURIComponent(f.name)}`} className="h-10 w-full max-w-xs" />
+                <a className={btnGhost} href={`/api/admin/fm90/${encodeURIComponent(f.name)}?download=1`}>Юклаб олиш</a>
+                <button className={btnDanger} disabled={busy} onClick={() => confirm(`${f.name} ўчирилсинми? Қайтариб бўлмайди.`) && act(() => fm90DeleteAction(f.name), "files")}>
+                  Ўчириш
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
   );
 }

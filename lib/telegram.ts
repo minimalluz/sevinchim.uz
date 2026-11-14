@@ -25,8 +25,14 @@ const API = (process.env.TELEGRAM_API_BASE || "https://api.telegram.org").replac
 export const BTN_START = "● Ёзишни бошлаш";
 export const BTN_STOP = "■ Тўхтатиш";
 export const BTN_STATUS = "ℹ️ Ҳолат";
+export const BTN_FM90_START = "● FM90.8 ёзиш";
+export const BTN_FM90_STOP = "■ FM90.8 тўхтатиш";
 const KEYBOARD = {
-  keyboard: [[{ text: BTN_START }, { text: BTN_STOP }], [{ text: BTN_STATUS }]],
+  keyboard: [
+    [{ text: BTN_START }, { text: BTN_STOP }],
+    [{ text: BTN_FM90_START }, { text: BTN_FM90_STOP }],
+    [{ text: BTN_STATUS }],
+  ],
   resize_keyboard: true,
   is_persistent: true,
 };
@@ -108,6 +114,8 @@ export async function connectBot(token: string) {
       { command: "yoz", description: "Эфирни ёзишни бошлаш" },
       { command: "toxta", description: "Ёзишни тўхтатиш ва сақлаш" },
       { command: "holat", description: "Ҳозирги ҳолат" },
+      { command: "fm90_yoz", description: "FM 90.8 ни ёзишни бошлаш" },
+      { command: "fm90_toxta", description: "FM 90.8 ёзувини тўхтатиш" },
     ],
   });
   const old = await getSettings();
@@ -151,16 +159,49 @@ function useLinkCode(code: string) {
 
 /* ---------- Ёзиш тугагач хабар (recorder.ts дан чақирилади) ---------- */
 
-export async function notifyRecordingFinished(
-  r: { ok: true; id: string; title: string; duration: number; note?: string } | { ok: false; error: string },
-) {
+const TG_FILE_LIMIT = 49 * 1024 * 1024; // Bot API орқали юбориш чегараси ~50 МБ
+
+/** Аудио файлни барча админларга юбориш (multipart) */
+async function sendAudioToAdmins(file: string, name: string, caption: string) {
+  const st = await getSettings();
+  if (!st) return;
+  const { openAsBlob } = await import("node:fs");
+  for (const a of st.admins) {
+    try {
+      const form = new FormData();
+      form.append("chat_id", String(a.id));
+      form.append("caption", caption);
+      form.append("title", name.replace(/\.mp3$/, ""));
+      form.append("audio", await openAsBlob(file, { type: "audio/mpeg" }), name);
+      const r = await fetch(`${API}/bot${st.token}/sendAudio`, { method: "POST", body: form, signal: AbortSignal.timeout(300000) });
+      const d = (await r.json().catch(() => ({}))) as ApiResult<unknown>;
+      if (!d.ok) throw new Error(d.description || `HTTP ${r.status}`);
+    } catch (e) {
+      console.error("[telegram] sendAudio:", (e as Error).message);
+      await send(a.id, `⚠️ Файлни Telegram'га юбориб бўлмади: ${esc((e as Error).message)}`);
+    }
+  }
+}
+
+export async function notifyRecordingFinished(r: recorder.FinishResult) {
+  const label = r.channel === "fm90" ? "FM90.8 ёзуви" : "Ёзув";
   if (!r.ok) {
-    await notifyAdmins(`⚠️ <b>Ёзув сақланмади</b>\n${esc(r.error)}`);
+    await notifyAdmins(`⚠️ <b>${label} сақланмади</b>\n${esc(r.error)}`);
+    return;
+  }
+  const warn = r.note ? `\n\n⚠️ ${esc(r.note)}` : "";
+  if (r.channel === "fm90") {
+    const mb = (r.size / 1048576).toFixed(1);
+    const fits = r.size <= TG_FILE_LIMIT;
+    await notifyAdmins(
+      `✅ <b>FM90.8 ёзуви сақланди</b>\n${esc(r.file)}\nДавомийлиги: ${formatTime(r.duration)} • ${mb} МБ${warn}\n\n` +
+        (fits ? "Файл шу ерга юборилмоқда…" : `Файл 50 МБ дан катта — уни админ-панелдан юклаб олинг: ${SITE_URL}/admin`),
+    );
+    if (fits) await sendAudioToAdmins(r.path, r.file, `FM 90.8 • ${formatTime(r.duration)}`);
     return;
   }
   await notifyAdmins(
-    `✅ <b>Ёзув сақланди</b>\n${esc(r.title)}\nДавомийлиги: ${formatTime(r.duration)}` +
-      (r.note ? `\n\n⚠️ ${esc(r.note)}` : "") +
+    `✅ <b>Ёзув сақланди</b>\n${esc(r.title)}\nДавомийлиги: ${formatTime(r.duration)}${warn}` +
       `\n\nҚоралама сифатида архивда турибди. Тинглаб кўриш: ${SITE_URL}/admin`,
     { reply_markup: { inline_keyboard: [[{ text: "📢 Чоп этиш", callback_data: `pub:${r.id}` }]] } },
   );
@@ -180,22 +221,29 @@ async function currentRubric() {
   return c.rubrics[0] ?? "Эфир";
 }
 
+function recLine(title: string, st: recorder.RecordingStatus) {
+  if (st.finalizing) return `⏳ <b>${title}</b>: сақланмоқда…`;
+  if (!st.active) return `⚪ <b>${title}</b>: ёзув кетмаяпти`;
+  const mb = ((st.bytes ?? 0) / 1048576).toFixed(1);
+  return (
+    `🔴 <b>${title}</b>: ёзилмоқда${st.rubric && title !== "FM90.8" ? ` (${esc(st.rubric)})` : ""}\n` +
+    `   ${formatTime(st.elapsed ?? 0)} • ${mb} МБ • тўхтайди ${clock((st.startedAt ?? 0) + st.maxSeconds * 1000)} да` +
+    (st.connected === false ? "\n   ⚠️ Оқимга қайта уланмоқда…" : "")
+  );
+}
+
 async function statusText() {
-  const st = await recorder.recordingStatus();
-  if (st.finalizing) return "⏳ Ёзув сақланмоқда…";
-  if (st.active) {
-    const mb = ((st.bytes ?? 0) / 1048576).toFixed(1);
-    return (
-      `🔴 <b>Ёзилмоқда</b>: ${esc(st.rubric ?? "")}\n` +
-      `Вақт: ${formatTime(st.elapsed ?? 0)} • ${mb} МБ\n` +
-      `Автоматик тўхтайди: ${clock((st.startedAt ?? 0) + st.maxSeconds * 1000)} да` +
-      (st.connected === false ? "\n⚠️ Оқимга қайта уланмоқда…" : "")
-    );
-  }
+  const [a, b] = await Promise.all([recorder.recordingStatus(), recorder.fm90Status()]);
   const c = await getContent();
   const air = onAir(c.schedule);
   const next = air.current ? `Ҳозир эфирда: ${esc(air.current.title)}` : air.next ? `Кейинги эфир: ${esc(air.next.title)}, ${air.next.start}` : "";
-  return `⚪ Ёзув кетмаяпти.${c.streams.length ? "" : "\n⚠️ Радио оқими киритилмаган — ёзиш учун админ-панелда «FM оқим» бўлимини тўлдиринг."}\n${next}`;
+  const { getFm90Settings } = await import("./fm90");
+  const fm = await getFm90Settings();
+  return [
+    recLine("Севинчим эфири", a) + (c.streams.length ? "" : "\n   ⚠️ «FM оқим» манзили киритилмаган"),
+    recLine("FM90.8", b) + (fm.streamUrl ? "" : "\n   ⚠️ «FM90.8» оқим манзили киритилмаган"),
+    next,
+  ].filter(Boolean).join("\n\n");
 }
 
 export async function handleUpdate(u: Update) {
@@ -256,7 +304,7 @@ export async function handleUpdate(u: Update) {
   }
 
   if (cmd === "/start" || cmd === "/help") {
-    return void (await send(chat, `Салом! 👋\n\n${BTN_START} — эфирни ёзишни бошлаш\n${BTN_STOP} — тўхтатиш ва сақлаш\n${BTN_STATUS} — ҳозирги ҳолат`, { reply_markup: KEYBOARD }));
+    return void (await send(chat, `Салом! 👋\n\n${BTN_START} — эфирни ёзишни бошлаш\n${BTN_STOP} — тўхтатиш ва сақлаш\n${BTN_FM90_START} / ${BTN_FM90_STOP} — FM 90.8 ёзуви\n${BTN_STATUS} — ҳозирги ҳолат`, { reply_markup: KEYBOARD }));
   }
 
   if (cmd === "/yoz" || text === BTN_START) {
@@ -277,6 +325,25 @@ export async function handleUpdate(u: Update) {
     await send(chat, "⏳ Тўхтатилмоқда ва сақланмоқда…");
     // Фонда: сақлаш бир неча сония олади. Натижа хабари notifyRecordingFinished орқали келади
     void recorder.stopRecording().catch((e) => send(chat, `❌ ${esc((e as Error).message)}`));
+    return;
+  }
+
+  if (cmd === "/fm90_yoz" || text === BTN_FM90_START) {
+    try {
+      await recorder.startFm90();
+      const st = await recorder.fm90Status();
+      await send(chat, `🔴 <b>FM90.8 ёзиш бошланди</b>\nАвтоматик тўхтайди: ${clock((st.startedAt ?? Date.now()) + st.maxSeconds * 1000)} да.\nТўхтатиш учун «${BTN_FM90_STOP}» ни босинг.`, { reply_markup: KEYBOARD });
+    } catch (e) {
+      await send(chat, `❌ FM90.8: ${esc((e as Error).message)}`, { reply_markup: KEYBOARD });
+    }
+    return;
+  }
+
+  if (cmd === "/fm90_toxta" || text === BTN_FM90_STOP) {
+    const st = await recorder.fm90Status();
+    if (!st.active) return void (await send(chat, "FM90.8 ёзуви ҳозир кетмаяпти.", { reply_markup: KEYBOARD }));
+    await send(chat, "⏳ FM90.8 тўхтатилмоқда ва сақланмоқда…");
+    void recorder.stopFm90().catch((e) => send(chat, `❌ ${esc((e as Error).message)}`));
     return;
   }
 

@@ -9,6 +9,7 @@ import { AUDIO_DIR, updateContent } from "@/lib/content";
 import { SAFE_NAME } from "@/lib/audio";
 import * as recorder from "@/lib/recorder";
 import * as telegram from "@/lib/telegram";
+import * as fm90 from "@/lib/fm90";
 import {
   checkPassword, createSession, destroySession, loginFailed, loginThrottle, requireAdmin,
 } from "@/lib/auth";
@@ -153,6 +154,76 @@ export async function publishEpisode(id: string): Promise<ActionResult> {
       delete ep.draft;
     });
   });
+}
+
+/* ---------- FM 90.8 (алоҳида лойиҳа учун ёзувлар) ---------- */
+export type Fm90Info = {
+  settings: fm90.Fm90Settings;
+  files: fm90.Fm90File[];
+  disk: { free: number; total: number };
+};
+
+export async function fm90InfoAction(): Promise<Fm90Info | null> {
+  try {
+    await requireAdmin();
+    const [settings, files, disk] = await Promise.all([fm90.getFm90Settings(), fm90.listFm90(), fm90.diskFree()]);
+    return { settings, files, disk };
+  } catch {
+    return null;
+  }
+}
+
+export async function fm90SaveSettingsAction(streamUrl: string, maxMinutes: number): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const url = str(streamUrl, 1000);
+    if (url && !isUrl(url)) throw new Error(`Нотўғри манзил: ${url}`);
+    const mins = Math.round(Number(maxMinutes));
+    if (!(mins >= 1 && mins <= 720)) throw new Error("Энг кўп давомийлик 1–720 дақиқа бўлиши керак");
+    await fm90.saveFm90Settings({ streamUrl: url, maxMinutes: mins });
+    return { ok: true, message: "Сақланди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
+}
+
+export async function fm90StartAction(): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    await recorder.startFm90();
+    return { ok: true, message: "Ёзиш бошланди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
+}
+
+export async function fm90StopAction(): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    await recorder.stopFm90();
+    return { ok: true, message: "Ёзиш тўхтатилди ва FM90 папкасига сақланди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
+}
+
+export async function fm90StatusAction(): Promise<recorder.RecordingStatus | null> {
+  try {
+    await requireAdmin();
+    return await recorder.fm90Status();
+  } catch {
+    return null;
+  }
+}
+
+export async function fm90DeleteAction(name: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    await fm90.deleteFm90(str(name, 200));
+    return { ok: true, message: "Ўчирилди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
 }
 
 /* ---------- Telegram бот ---------- */
