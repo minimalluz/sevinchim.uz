@@ -120,15 +120,29 @@ curl -fsSL https://raw.githubusercontent.com/minimalluz/sevinchim.uz/main/deploy
 
 ---
 
-## Сайтни янгилаш
+## Сайтни янгилаш — автоматик
 
-GitHub'да код янгилангандан кейин шу буйруқнинг ўзини қайта ишга туширинг:
+`setup.sh` ўрнатилгач, сервер **ҳар 5 дақиқада GitHub'ни ўзи текширади**. `main` га янги код тушса:
+
+1. Янги версия **алоҳида папкада** йиғилади, ишлаб турган сайтга тегилмайди.
+2. Йиғиш хато берса, сайт ўзгармайди. Telegram'га «❌ Сайтни янгилаб бўлмади» хабари келади, ўша коммит қайта уринилмайди.
+3. **Эфир ёзилаётган бўлса, ёзув тугашини кутади.**
+4. Папкалар алмаштирилади, сайт қайта ишга тушади ва текширилади. Очилмаса, олдинги версия дарҳол қайтарилади.
+5. Telegram'га «🔄 Сайт янгиланди» хабари келади.
+
+Фойдали буйруқлар:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/minimalluz/sevinchim.uz/main/deploy/setup.sh | bash
+sudo journalctl -u sevinchim-update -n 50      # янгилаш журнали
+sudo systemctl start sevinchim-update          # ҳозироқ текшириш
+systemctl list-timers sevinchim-update         # кейинги текшириш вақти
 ```
 
-`.env` (пароль) ва юкланган аудиолар сақланиб қолади.
+Олдинги версия `/var/www/sevinchim-uz.prev` папкасида сақланади. Автоматик янгилашни ўчириш учун:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/minimalluz/sevinchim.uz/main/deploy/setup.sh | AUTO_UPDATE=0 bash
+```
 
 ## Захира нусха
 

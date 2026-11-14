@@ -83,7 +83,7 @@ npm start               # http://localhost:3000
 curl -fsSL https://raw.githubusercontent.com/minimalluz/sevinchim.uz/main/deploy/setup.sh | bash
 ```
 
-Шу буйруқни қайта ишга туширсангиз, сайт янгиланади. `.env` ва юкланган аудиолар сақланиб қолади.
+Кейин сервер **ўзи янгиланади**: ҳар 5 дақиқада GitHub'ни текширади, янги версияни алоҳида папкада йиғади, эфир ёзуви тугашини кутади ва хато бўлса олдинги версияни қайтаради (`deploy/auto-update.sh`, батафсил — docs/DEPLOY.md). `.env` ва юкланган аудиолар сақланиб қолади.
 
 **Захира нусха:** фақат `DATA_DIR` папкасини (`content.json` ва `audio/`) сақлаш кифоя.
 

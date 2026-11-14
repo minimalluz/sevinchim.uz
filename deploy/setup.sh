@@ -36,6 +36,9 @@ as_user() {
 [ "${ID:-}" = "ubuntu" ] || warn "Скрипт Ubuntu учун ёзилган (сизда: ${PRETTY_NAME:-номаълум})"
 id "$APP_USER" >/dev/null 2>&1 || die "Фойдаланувчи топилмади: $APP_USER"
 
+# QUICK=1 — автоматик янгилаш учун: тизим пакетлари, Node.js ва файрвол
+# аввалги ўрнатишда созланган, улар ўтказиб юборилади
+if [ "${QUICK:-0}" != 1 ]; then
 # -----------------------------------------------------------------------------
 step "1/8 Тизим пакетлари"
 $SUDO env DEBIAN_FRONTEND=noninteractive apt-get update -qq
@@ -86,6 +89,8 @@ if command -v ufw >/dev/null 2>&1 && $SUDO ufw status 2>/dev/null | grep -q "Sta
 fi
 warn "Провайдер панелида ҳам 80 ва 443 очиқ бўлсин (Oracle: VCN → Security List → Ingress Rules)"
 
+fi # QUICK
+
 # -----------------------------------------------------------------------------
 step "4/8 Сайт коди"
 $SUDO mkdir -p "$APP_DIR" "$DATA_DIR"
@@ -94,8 +99,9 @@ if [ -d "$APP_DIR/.git" ]; then
   # Серверадаги нусха доим GitHub'дагига тенглаштирилади
   # (.env git'да кузатилмайди, у сақланади)
   as_user git -C "$APP_DIR" fetch -q origin "$BRANCH"
-  as_user git -C "$APP_DIR" checkout -q -B "$BRANCH" "origin/$BRANCH"
-  as_user git -C "$APP_DIR" reset -q --hard "origin/$BRANCH"
+  # PIN_COMMIT — автоматик янгилаш аниқ шу коммитни ўрнатади (йиғилган версия билан мос бўлсин)
+  as_user git -C "$APP_DIR" checkout -q -B "$BRANCH" "${PIN_COMMIT:-origin/$BRANCH}"
+  as_user git -C "$APP_DIR" reset -q --hard "${PIN_COMMIT:-origin/$BRANCH}"
   ok "Янгиланди: $(as_user git -C "$APP_DIR" log -1 --format='%h %s')"
 else
   [ -z "$(ls -A "$APP_DIR")" ] || die "$APP_DIR бўш эмас ва git репозиторий эмас"
@@ -128,10 +134,14 @@ fi
 # -----------------------------------------------------------------------------
 step "6/8 Йиғиш (2–5 дақиқа)"
 cd "$APP_DIR"
+if [ "${SKIP_BUILD:-0}" = 1 ]; then
+  ok "Йиғиш ўтказиб юборилди (автоматик янгилаш аввал йиққан)"
+else
 as_user npm ci --no-audit --no-fund --loglevel=error
 as_user npm run build --silent >/tmp/sevinchim-build.log 2>&1 \
   || { tail -30 /tmp/sevinchim-build.log; die "Йиғишда хатолик (тўлиқ журнал: /tmp/sevinchim-build.log)"; }
 ok "Сайт йиғилди"
+fi
 
 # -----------------------------------------------------------------------------
 step "7/8 Хизмат (systemd)"
@@ -148,6 +158,39 @@ for _ in $(seq 1 40); do
 done
 [ "$code" = 200 ] || die "Сайт ишга тушмади. Журнал: sudo journalctl -u sevinchim -n 50"
 ok "Сайт ишлаяпти (127.0.0.1:3000)"
+
+# Автоматик янгилаш: ҳар 5 дақиқада GitHub'ни текширади (AUTO_UPDATE=0 — ўчириш)
+if [ "${AUTO_UPDATE:-1}" = 1 ]; then
+  $SUDO tee /etc/systemd/system/sevinchim-update.service >/dev/null <<UNIT
+[Unit]
+Description=sevinchim.uz — GitHub'дан автоматик янгилаш
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=APP_DIR=$APP_DIR
+Environment=BRANCH=$BRANCH
+ExecStart=/bin/bash $APP_DIR/deploy/auto-update.sh
+TimeoutStartSec=3600
+UNIT
+  $SUDO tee /etc/systemd/system/sevinchim-update.timer >/dev/null <<UNIT
+[Unit]
+Description=sevinchim.uz — ҳар 5 дақиқада янгиланишни текшириш
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+  $SUDO systemctl daemon-reload
+  $SUDO systemctl enable --now sevinchim-update.timer >/dev/null 2>&1
+  ok "Автоматик янгилаш ёқилди (ҳар 5 дақиқада)"
+else
+  $SUDO systemctl disable --now sevinchim-update.timer >/dev/null 2>&1 || true
+fi
 
 # -----------------------------------------------------------------------------
 step "8/8 Nginx ва HTTPS"
