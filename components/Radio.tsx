@@ -7,6 +7,7 @@ import { usePlayer } from "./player/PlayerProvider";
 import { PlayPauseButton, QualitySelector, Spinner } from "./player/Controls";
 import { Equalizer, IconExternal, IconPause, IconPlay } from "./icons";
 import { useOnAir, useSiteData } from "./SiteData";
+import { openLivePopup } from "./livePopup";
 
 /** «FM Радиони тинглаш» тезкор тугмаси */
 export function ListenLiveButton({ className = "" }: { className?: string }) {
@@ -20,7 +21,7 @@ export function ListenLiveButton({ className = "" }: { className?: string }) {
   // Расмий оқим уланмагунча — эфир ташқи платформада (янги ойнада)
   if (!hasStream && liveFallback) {
     return (
-      <a href={liveFallback.url} target="_blank" rel="noopener noreferrer" className={cls}>
+      <a href={liveFallback.url} target="_blank" rel="noopener noreferrer" className={cls} onClick={openLivePopup}>
         <span className="grid size-10 place-items-center rounded-full bg-white text-brand">
           <IconPlay width={20} height={20} className="translate-x-px" />
         </span>
@@ -124,6 +125,7 @@ export function LivePlayerHero() {
           {!hasStream && liveFallback ? (
             <a
               href={liveFallback.url}
+              onClick={openLivePopup}
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`Жонли эфирни ${liveFallback.label}'да тинглаш (янги ойнада)`}
@@ -167,7 +169,7 @@ export function LivePlayerHero() {
                 {liveFallback && (
                   <>
                     {" "}
-                    <a href={liveFallback.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink underline underline-offset-2">
+                    <a href={liveFallback.url} target="_blank" rel="noopener noreferrer" onClick={openLivePopup} className="font-semibold text-ink underline underline-offset-2">
                       {liveFallback.label}'да тинглаш
                     </a>
                   </>

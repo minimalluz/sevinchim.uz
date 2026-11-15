@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { IconArchive, IconHome, IconImage, IconRadio, IconUser, Equalizer } from "./icons";
 import { usePlayer } from "./player/PlayerProvider";
 import { useSiteData } from "./SiteData";
+import { openLivePopup } from "./livePopup";
 
 export const NAV = [
   { href: "/", label: "Бош саҳифа", icon: IconHome },
@@ -62,7 +63,7 @@ export function SiteHeader({ name }: { name: string }) {
           </button>
         ) : liveFallback ? (
           // Расмий оқим уланмагунча — жонли эфир ташқи платформада
-          <a href={liveFallback.url} target="_blank" rel="noopener noreferrer" className={liveBtn}>
+          <a href={liveFallback.url} target="_blank" rel="noopener noreferrer" className={liveBtn} onClick={openLivePopup}>
             <span className="size-2 rounded-full bg-live animate-pulse-dot" />
             Жонли эфир
             <span className="sr-only"> ({liveFallback.label}, янги ойнада)</span>
