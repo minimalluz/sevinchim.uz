@@ -9,6 +9,20 @@ import { Equalizer, IconExternal, IconPause, IconPlay } from "./icons";
 import { useOnAir, useSiteData } from "./SiteData";
 import { openLivePopup } from "./livePopup";
 
+/**
+ * Ташқи платформа станциянинг ўз ҳаволасини бермайди (Mediabay умумий радио
+ * саҳифаси очилади) — тингловчига қаерни босишни айтамиз.
+ */
+export function LiveFallbackHint({ className = "" }: { className?: string }) {
+  const { hasStream, liveFallback, station } = useSiteData();
+  if (hasStream || !liveFallback) return null;
+  return (
+    <p className={`text-sm text-muted ${className}`}>
+      {liveFallback.label} очилгач, <b className="text-ink">«{station}»</b>ни босинг — эфир юқоридаги плеерда ўйнайди.
+    </p>
+  );
+}
+
 /** «FM Радиони тинглаш» тезкор тугмаси */
 export function ListenLiveButton({ className = "" }: { className?: string }) {
   const { track, status, playLive, toggle } = usePlayer();
@@ -154,6 +168,7 @@ export function LivePlayerHero() {
               <p className="mt-2 max-w-sm text-sm text-muted">
                 Жонли эфир ҳозирча <b className="text-ink">{liveFallback.label}</b> платформасида, янги ойнада очилади.
               </p>
+              <LiveFallbackHint className="mt-2 max-w-sm" />
             </>
           ) : (
             <p className="max-w-sm text-sm text-muted">Онлайн эфир тез орада уланади. Ҳозирча радиони {frequency} тўлқинида тингланг.</p>

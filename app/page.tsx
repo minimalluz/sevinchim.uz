@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getPublicContent as getContent } from "@/lib/content";
 import { formatDate } from "@/lib/format";
-import { ListenLiveButton, NextAirText, NowOnAirCard } from "@/components/Radio";
+import { ListenLiveButton, LiveFallbackHint, NextAirText, NowOnAirCard } from "@/components/Radio";
 import { EpisodeCard } from "@/components/Archive";
 import { SectionTitle } from "@/components/ui";
 import { IconArchive } from "@/components/icons";
@@ -38,6 +38,7 @@ export default async function HomePage() {
               <IconArchive width={20} height={20} /> Архивни очиш
             </Link>
           </div>
+          <LiveFallbackHint className="mt-3 max-w-md text-xs md:text-sm" />
         </div>
 
         <div className="relative order-1 md:order-2">
