@@ -149,19 +149,11 @@ export async function connectBot(token: string) {
     allowed_updates: ["message", "callback_query"],
     drop_pending_updates: true,
   });
-  await api(token, "setMyCommands", {
-    commands: [
-      { command: "yoz", description: "Эфирни ёзишни бошлаш" },
-      { command: "toxta", description: "Ёзишни тўхтатиш ва сақлаш" },
-      { command: "holat", description: "Ҳозирги ҳолат" },
-      { command: "fm90_yoz", description: "FM 90.8 ни ёзишни бошлаш" },
-      { command: "fm90_toxta", description: "FM 90.8 ёзувини тўхтатиш" },
-    ],
-  });
   const old = await getSettings();
   // Бошқа бот уланса, эски админлар рўйхати ўчирилади
   const admins = old && old.token === token ? old.admins : [];
   await saveSettings({ token, username: me.username, admins });
+  await syncCommands({ token, username: me.username, admins });
   return { username: me.username };
 }
 
@@ -176,6 +168,30 @@ export async function removeAdmin(id: number) {
   if (!s) return;
   s.admins = s.admins.filter((a) => a.id !== id);
   await saveSettings(s);
+  await api(s.token, "deleteMyCommands", { scope: { type: "chat", chat_id: id } }).catch(() => undefined);
+}
+
+/* ---------- Буйруқлар менюси ---------- */
+
+const ADMIN_COMMANDS = [
+  { command: "yoz", description: "Эфирни ёзишни бошлаш" },
+  { command: "toxta", description: "Ёзишни тўхтатиш ва сақлаш" },
+  { command: "holat", description: "Ҳозирги ҳолат" },
+  { command: "fm90_yoz", description: "FM 90.8 ни ёзишни бошлаш" },
+  { command: "fm90_toxta", description: "FM 90.8 ёзувини тўхтатиш" },
+];
+
+/**
+ * Ҳамма учун меню — фақат «/start». Ёзиш буйруқлари фақат админларнинг
+ * ўз чатида кўринади (Telegram'нинг chat scope'и).
+ */
+async function syncCommands(s: Settings) {
+  await api(s.token, "setMyCommands", { commands: [{ command: "start", description: "Бошлаш" }] }).catch((e) =>
+    console.error("[telegram] setMyCommands:", (e as Error).message),
+  );
+  for (const a of s.admins) {
+    await api(s.token, "setMyCommands", { commands: ADMIN_COMMANDS, scope: { type: "chat", chat_id: a.id } }).catch(() => undefined);
+  }
 }
 
 /* Улаш коди: админ-панелда кўрсатилади, 10 дақиқа амал қилади, бир марталик */
@@ -291,6 +307,12 @@ async function statusText() {
 export async function handleUpdate(u: Update) {
   const s = await getSettings();
   if (!s) return;
+  // Эски версияда меню ҳамма учун эди — сервер ишга тушгач бир марта тўғрилаймиз
+  const gs = globalThis as unknown as { __svTgCmds?: boolean };
+  if (!gs.__svTgCmds) {
+    gs.__svTgCmds = true;
+    void syncCommands(s);
+  }
   const isAdmin = (id?: number) => !!id && s.admins.some((a) => a.id === id);
 
   /* «Чоп этиш» тугмаси */
@@ -365,10 +387,22 @@ export async function handleUpdate(u: Update) {
   const code = /^\d{6}$/.test(text) ? text : /^\/(ulash|start)$/.test(cmd) && /^\d{6}$/.test(rest[0] || "") ? rest[0] : "";
   if (code) {
     if (isAdmin(msg.from.id)) return void (await send(chat, "Сиз аллақачон уланган экансиз ✅", { reply_markup: KEYBOARD }));
-    if (!useLinkCode(code)) return void (await send(chat, "❌ Код нотўғри ёки муддати ўтган. Админ-панелда янги код олинг."));
+    // Кодни тахмин қилиб топишдан ҳимоя: 5 та хатодан кейин 1 соат блок
+    const { throttle } = await import("./users");
+    let t;
+    try {
+      t = throttle(`tg-link:${msg.from.id}`, 5, 60 * 60e3);
+    } catch {
+      return void (await send(chat, "⛔ Уринишлар жуда кўп. 1 соатдан кейин қайта уриниб кўринг."));
+    }
+    if (!useLinkCode(code)) {
+      t.fail();
+      return void (await send(chat, "❌ Код нотўғри ёки муддати ўтган. Админ-панелда янги код олинг."));
+    }
     const fresh = (await getSettings()) ?? s;
     fresh.admins.push({ id: msg.from.id, name: msg.from.first_name || msg.from.username || String(msg.from.id) });
     await saveSettings(fresh);
+    await syncCommands(fresh);
     return void (await send(chat, "✅ <b>Уландингиз!</b>\nЭнди пастдаги тугмалар билан эфир ёзишни бошқарасиз.", { reply_markup: KEYBOARD }));
   }
 
