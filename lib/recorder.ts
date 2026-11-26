@@ -39,6 +39,8 @@ type State = {
   maxSeconds: number;
   source: string;
   parts: string[];
+  /** Жадвал бўйича ёзувда соат оралиғи, масалан «19:00–20:00» */
+  part?: string;
 };
 
 type Runtime = {
@@ -251,6 +253,8 @@ class Recorder {
       }
     })().finally(() => {
       rt.finalizing = null;
+      // Соатлик ёзув тугади — кейинги соатни кечиктирмасдан бошлаш учун
+      void import("./autorec").then((m) => m.kick()).catch(() => undefined);
     });
     return rt.finalizing;
   }
@@ -276,7 +280,7 @@ class Recorder {
     await this.finalize("Ёзиш сервер қайта ишга тушгани сабабли эрта тўхтаган.");
   }
 
-  async start(label: string) {
+  async start(label: string, opts: { maxSeconds?: number; part?: string } = {}) {
     const { rt, cfg } = this;
     await this.recover();
     if (rt.state || rt.finalizing) throw new Error("Ёзиш аллақачон кетяпти");
@@ -291,9 +295,10 @@ class Recorder {
       id: randomBytes(6).toString("hex"),
       label: label.trim().slice(0, 80),
       startedAt: Date.now(),
-      maxSeconds: src.maxSeconds,
+      maxSeconds: Math.min(src.maxSeconds, opts.maxSeconds ?? Infinity),
       source: src.url,
       parts: [],
+      part: opts.part,
     };
     rt.stopping = false;
     rt.reconnects = 0;
@@ -304,7 +309,7 @@ class Recorder {
     await this.saveState();
     this.spawnPart();
     // Тўхтатиш эсдан чиқса — энг кўп вақтдан кейин ўзи тўхтайди
-    rt.stopTimer = setTimeout(() => void this.stop(), src.maxSeconds * 1000 + 15000);
+    rt.stopTimer = setTimeout(() => void this.stop(), rt.state.maxSeconds * 1000 + 15000);
   }
 
   async stop() {
@@ -384,7 +389,7 @@ const sevinchim = new Recorder({
     const name = `${date}-efir-${randomBytes(4).toString("hex")}.mp3`;
     await fs.rename(merged, path.join(AUDIO_DIR, name));
     const id = "e" + Date.now().toString(36) + randomBytes(2).toString("hex");
-    const title = `${s.label} — ${formatDate(date)}`;
+    const title = `${s.label}${s.part ? ` (${s.part})` : ""} — ${formatDate(date)}`;
     await updateContent((c) => {
       c.episodes.unshift({ id, title, rubric: s.label, date, duration, description: note ?? "", audio: `/api/audio/${name}`, draft: true });
       if (!c.rubrics.includes(s.label)) c.rubrics.push(s.label);
@@ -394,14 +399,13 @@ const sevinchim = new Recorder({
 });
 
 export const startRecording = (rubric: string) => sevinchim.start(rubric);
+export const recordingStatus = () => sevinchim.status();
+
 /** Админ қўлда тўхтатди (панел ёки Telegram) — автомат шу эфирни қайта бошламайди */
 export async function stopRecording() {
-  await import("./autorec").then((m) => m.noteManualStop()).catch((e) => console.error("[autorec]", e));
+  await import("./autorec").then((m) => m.noteManualStop("sevinchim")).catch((e) => console.error("[autorec]", e));
   await sevinchim.stop();
 }
-/** Жадвал бўйича автомат тўхтатиш */
-export const stopRecordingAuto = () => sevinchim.stop();
-export const recordingStatus = () => sevinchim.status();
 
 /* ---------- Канал 2: FM 90.8 → DATA_DIR/FM90 папкаси ---------- */
 
@@ -433,5 +437,19 @@ const fm90 = new Recorder({
 });
 
 export const startFm90 = () => fm90.start("FM 90.8");
-export const stopFm90 = () => fm90.stop();
 export const fm90Status = () => fm90.status();
+
+export async function stopFm90() {
+  await import("./autorec").then((m) => m.noteManualStop("fm90")).catch((e) => console.error("[autorec]", e));
+  await fm90.stop();
+}
+
+/** Жадвал бўйича автоматик ёзиш учун (lib/autorec.ts) */
+export const channels: Record<ChannelId, {
+  start(label: string, opts: { maxSeconds: number; part: string }): Promise<void>;
+  stop(): Promise<void>;
+  status(): Promise<RecordingStatus>;
+}> = {
+  sevinchim: { start: (l, o) => sevinchim.start(l, o), stop: () => sevinchim.stop(), status: () => sevinchim.status() },
+  fm90: { start: (_l, o) => fm90.start("FM 90.8", o), stop: () => fm90.stop(), status: () => fm90.status() },
+};

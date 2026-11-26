@@ -7,7 +7,7 @@ import { WEEKDAYS, formatDate, formatDuration, formatTime, onAir } from "@/lib/f
 import type { RecordingStatus } from "@/lib/recorder";
 import { UPLOAD_CHUNK } from "@/lib/audio";
 import {
-  addEpisode, autoRecAction, deleteEpisode, setAutoRecAction, logout, publishEpisode, recordingStatusAction, saveAnnouncements, saveSchedule,
+  addEpisode, autoRecAction, deleteEpisode, saveFm90ScheduleAction, setAutoRecAction, logout, publishEpisode, recordingStatusAction, saveAnnouncements, saveSchedule,
   saveStreams, startRecordingAction, stopRecordingAction, updateEpisode,
   telegramConnectAction, telegramDisconnectAction, telegramInfoAction, telegramLinkCodeAction, telegramRemoveAdminAction,
   fm90DeleteAction, fm90InfoAction, fm90SaveSettingsAction, fm90StartAction, fm90StatusAction, fm90StopAction,
@@ -209,27 +209,44 @@ function EpisodeFields({ value, onChange, rubrics }: { value: Partial<Episode>; 
 /* ---------- Эфирни ёзиб олиш ---------- */
 const clock = (ms: number) => new Date(ms + 5 * 3600e3).toISOString().slice(11, 16); // Тошкент вақти
 
-/** Жадвал бўйича автоматик ёзиш — ёқиш/ўчириш */
-function AutoRecToggle({ hasStream, info, reload }: {
-  hasStream: boolean;
-  info: Awaited<ReturnType<typeof autoRecAction>>;
+type AutoInfo = Awaited<ReturnType<typeof autoRecAction>>;
+
+/** Автоматик ёзиш маълумоти: панелни очиқ турганда ҳам янгилаб турамиз */
+function useAutoRec(channel: "sevinchim" | "fm90", dep: unknown) {
+  const [info, setInfo] = useState<AutoInfo>(null);
+  const reload = useCallback(async () => setInfo(await autoRecAction(channel)), [channel]);
+  useEffect(() => {
+    void reload();
+  }, [reload, dep]);
+  return [info, reload] as const;
+}
+
+/** Жадвал бўйича автоматик ёзиш — ёқиш/ўчириш (FM90 учун кун ва вақт ҳам) */
+function AutoRecToggle({ channel, canRecord, info, reload }: {
+  channel: "sevinchim" | "fm90";
+  canRecord: boolean;
+  info: AutoInfo;
   reload: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<ActionResult | null>(null);
+  const [sched, setSched] = useState<{ days: number[]; start: string; end: string } | null>(null);
+  useEffect(() => {
+    if (info?.schedule && !sched) setSched({ ...info.schedule, days: [...info.schedule.days] });
+  }, [info, sched]);
 
-  const toggle = async () => {
-    if (!info) return;
+  const run = async (fn: () => Promise<ActionResult>) => {
     setBusy(true);
-    setErr(null);
-    const r = await setAutoRecAction(!info.enabled);
-    if (!r.ok) setErr(r.error);
-    // Ёқилганда эфир ҳозир бошланса — ёзиш бир неча сонияда ўзи бошланади
+    setMsg(null);
+    const r = await fn();
+    setMsg(r.ok && fn === toggleFn ? null : r);
     await reload();
     setBusy(false);
   };
+  const toggleFn = () => setAutoRecAction(channel, !info?.enabled);
 
   if (!info) return null;
+  const days = ([1, 2, 3, 4, 5, 6, 7] as Weekday[]);
   return (
     <div className="mt-4 rounded-2xl border border-white/8 bg-bg/40 p-4">
       <label className="flex cursor-pointer items-start gap-3">
@@ -237,26 +254,63 @@ function AutoRecToggle({ hasStream, info, reload }: {
           type="checkbox"
           className="mt-1 size-5 shrink-0 accent-[var(--color-brand)]"
           checked={info.enabled}
-          disabled={busy || (!hasStream && !info.enabled)}
-          onChange={toggle}
+          disabled={busy || (!canRecord && !info.enabled)}
+          onChange={() => void run(toggleFn)}
         />
         <span>
           <span className="font-semibold">Жадвал бўйича автоматик ёзиш</span>
           <span className="mt-1 block text-sm text-muted">
-            «Эфир жадвали»да <b className="text-ink">ўз дастури</b> белгиланган ҳар бир эфир бошланишидан 2 дақиқа олдин ёзиш ўзи бошланади,
-            тугагандан 5 дақиқа кейин ўзи тўхтайди. Ёзув архивга қоралама бўлиб тушади. Эрта тўхтатсангиз, шу эфир қайта ёзилмайди.
+            {channel === "sevinchim"
+              ? <>«Эфир жадвали»да <b className="text-ink">ўз дастури</b> белгиланган ҳар бир эфир ўзи ёзилади. </>
+              : <>Пастда белгиланган кунлар ва вақтда ўзи ёзилади. </>}
+            Ёзув <b className="text-ink">соатма-соат</b> бўлинади: соат бошида бошланади, соат охирида тугайди
+            (масалан, 3 соатлик дастур — 3 та файл).{" "}
+            {channel === "sevinchim" ? "Ҳар бир соат архивга алоҳида қоралама бўлиб тушади." : "Ҳар бир соат FM90 папкасига алоҳида файл бўлиб тушади."}{" "}
+            Эфир пайтида тўхтатсангиз, шу эфирнинг қолган соатлари ёзилмайди.
           </span>
           {info.enabled && info.next && (
             <span className="mt-2 block text-sm font-semibold text-mint">
-              Кейинги ёзув: «{info.next.title}», {info.nextLabel}
+              Кейинги ёзув: {channel === "sevinchim" && <>«{info.next.title}», </>}{info.next.label}–{clock(info.next.endsAt)}
             </span>
           )}
           {info.enabled && !info.next && (
-            <span className="mt-2 block text-sm text-gold">Жадвалда «ўз дастури» белгиланган эфир йўқ.</span>
+            <span className="mt-2 block text-sm text-gold">
+              {channel === "sevinchim" ? "Жадвалда «ўз дастури» белгиланган эфир йўқ." : "Ёзиш кунлари танланмаган."}
+            </span>
           )}
         </span>
       </label>
-      {err && <p className="mt-2 text-sm font-semibold text-live" role="alert">{err}</p>}
+
+      {channel === "fm90" && sched && (
+        <div className="mt-4 grid gap-3 border-t border-white/8 pt-4">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Ёзиш кунлари">
+            {days.map((d) => {
+              const on = sched.days.includes(d);
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={on}
+                  className={`min-h-11 min-w-12 rounded-xl border px-3 text-sm font-semibold transition ${on ? "border-brand bg-brand/20 text-ink" : "border-white/10 text-muted hover:bg-white/5"}`}
+                  onClick={() => setSched({ ...sched, days: on ? sched.days.filter((x) => x !== d) : [...sched.days, d] })}
+                >
+                  {WEEKDAYS[d].slice(0, 2)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Бошланиши"><input type="time" className={input} value={sched.start} onChange={(e) => setSched({ ...sched, start: e.target.value })} /></Field>
+            <Field label="Тугаши"><input type="time" className={input} value={sched.end} onChange={(e) => setSched({ ...sched, end: e.target.value })} /></Field>
+            <button className={btnPrimary} disabled={busy} onClick={() => void run(() => saveFm90ScheduleAction(sched))}>Сақлаш</button>
+          </div>
+        </div>
+      )}
+      {msg && (
+        <p className={`mt-2 text-sm font-semibold ${msg.ok ? "text-mint" : "text-live"}`} role={msg.ok ? "status" : "alert"}>
+          {msg.ok ? `✓ ${msg.message}` : msg.error}
+        </p>
+      )}
     </div>
   );
 }
@@ -269,11 +323,7 @@ function RecorderPanel({ rubrics, schedule, hasStream }: { rubrics: string[]; sc
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<ActionResult | null>(null);
   const wasActive = useRef(false);
-  const [auto, setAuto] = useState<Awaited<ReturnType<typeof autoRecAction>>>(null);
-  const loadAuto = useCallback(async () => setAuto(await autoRecAction()), []);
-  useEffect(() => {
-    void loadAuto();
-  }, [loadAuto, status?.active]);
+  const [auto, loadAuto] = useAutoRec("sevinchim", status?.active);
 
   const poll = useCallback(async () => {
     const st = await recordingStatusAction();
@@ -351,8 +401,8 @@ function RecorderPanel({ rubrics, schedule, hasStream }: { rubrics: string[]; sc
               <p><b className="text-ink">{status.rubric}</b></p>
               <p>{((status.bytes ?? 0) / 1048576).toFixed(1)} МБ ёзилди</p>
               <p>
-                {auto?.stopsAt
-                  ? <>Жадвал бўйича ўзи тўхтайди: {clock(auto.stopsAt)} да</>
+                {auto?.segEnd
+                  ? <>Бу соат {clock(auto.segEnd)} да тугайди{auto.occEnd && auto.occEnd > auto.segEnd ? <>, кейинги соат ўзи бошланади (эфир {clock(auto.occEnd)} гача)</> : null}</>
                   : <>Автоматик тўхтайди: {clock((status.startedAt ?? 0) + status.maxSeconds * 1000)} да</>}
               </p>
             </div>
@@ -395,7 +445,7 @@ function RecorderPanel({ rubrics, schedule, hasStream }: { rubrics: string[]; sc
       )}
       {status?.lastError && <p className="mt-2 text-sm text-gold" role="status">{status.lastError}</p>}
       {msg && !msg.ok && <p className="mt-2 text-sm font-semibold text-live" role="alert">{msg.error}</p>}
-      <AutoRecToggle hasStream={hasStream} info={auto} reload={loadAuto} />
+      <AutoRecToggle channel="sevinchim" canRecord={hasStream} info={auto} reload={loadAuto} />
     </section>
   );
 }
@@ -782,6 +832,7 @@ function Fm90Admin() {
   // Хабар қайси бўлимда кўрсатилиши: ёзиш, созламалар ёки файллар
   const [msgAt, setMsgAt] = useState<"rec" | "settings" | "files">("rec");
   const wasActive = useRef(false);
+  const [auto, loadAuto] = useAutoRec("fm90", status?.active);
 
   const load = useCallback(async () => {
     const i = await fm90InfoAction();
@@ -857,7 +908,11 @@ function Fm90Admin() {
               <p className="font-display text-5xl font-extrabold tabular-nums">{formatTime(elapsed)}</p>
               <div className="text-sm text-muted">
                 <p>{mb(status.bytes ?? 0)} ёзилди</p>
-                <p>Автоматик тўхтайди: {clock((status.startedAt ?? 0) + status.maxSeconds * 1000)} да</p>
+                <p>
+                  {auto?.segEnd
+                    ? <>Бу соат {clock(auto.segEnd)} да тугайди{auto.occEnd && auto.occEnd > auto.segEnd ? <>, кейинги соат ўзи бошланади ({clock(auto.occEnd)} гача)</> : null}</>
+                    : <>Автоматик тўхтайди: {clock((status.startedAt ?? 0) + status.maxSeconds * 1000)} да</>}
+                </p>
               </div>
             </div>
             {!status.connected && <p className="text-sm text-gold" role="status">Оқимга қайта уланмоқда…</p>}
@@ -879,6 +934,7 @@ function Fm90Admin() {
         {status?.lastDraft && !active && <p className="mt-3 text-sm font-semibold text-mint">✓ Сақланди: {status.lastDraft.title}</p>}
         {status?.lastError && <p className="mt-2 text-sm text-gold">{status.lastError}</p>}
         {msg && !msg.ok && msgAt === "rec" && <p className="mt-2 text-sm font-semibold text-live" role="alert">{msg.error}</p>}
+        <AutoRecToggle channel="fm90" canRecord={Boolean(info.settings.streamUrl)} info={auto} reload={loadAuto} />
       </section>
 
       <section className="rounded-[var(--radius-card)] border border-white/8 bg-surface p-5">

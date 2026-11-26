@@ -29,7 +29,7 @@ BRANCH="${BRANCH:-main}"
 NEXT_DIR="$APP_DIR.next-release"
 PREV_DIR="$APP_DIR.prev"
 SERVICE="${SERVICE:-sevinchim}"
-WAIT_REC_MAX="${WAIT_REC_MAX:-21600}" # ёзув тугашини энг кўпи 6 соат кутамиз
+WAIT_REC_MAX="${WAIT_REC_MAX:-21600}" # ёзув/эфир тугашини энг кўпи 6 соат кутамиз
 
 log() { echo "[$(date '+%F %T')] $*"; }
 
@@ -63,7 +63,12 @@ for a in s.get("admins", []):
 PY
 }
 
-recording_active() { [ -f "$DATA_DIR/recording.json" ] || [ -f "$DATA_DIR/recording-fm90.json" ]; }
+recording_active() {
+  [ -f "$DATA_DIR/recording.json" ] || [ -f "$DATA_DIR/recording-fm90.json" ] && return 0
+  # Жадвал бўйича ёзиш ойнаси очиқ (соатлар орасидаги бир неча сонияда ҳам)
+  local until; until=$(cat "$DATA_DIR/autorec-busy" 2>/dev/null || echo 0)
+  [ "${until:-0}" -gt "$(date +%s)" ] 2>/dev/null
+}
 healthy() {
   local code=000
   for _ in $(seq 1 60); do

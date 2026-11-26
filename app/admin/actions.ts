@@ -300,21 +300,37 @@ export async function stopRecordingAction(): Promise<ActionResult> {
   }
 }
 
-export async function autoRecAction(): Promise<(autorec.AutoRecInfo & { nextLabel: string | null }) | null> {
+export async function autoRecAction(channel: recorder.ChannelId): Promise<autorec.AutoRecInfo | null> {
   try {
     await requireAdmin();
-    const a = await autorec.getAutoRec();
-    return { ...a, nextLabel: a.next ? autorec.whenLabel(a.next.startsAt) : null };
+    return await autorec.getAutoRec(channel === "fm90" ? "fm90" : "sevinchim");
   } catch {
     return null;
   }
 }
 
-export async function setAutoRecAction(enabled: boolean): Promise<ActionResult> {
+export async function setAutoRecAction(channel: recorder.ChannelId, enabled: boolean): Promise<ActionResult> {
   try {
     await requireAdmin();
-    await autorec.setAutoRec(Boolean(enabled));
+    await autorec.setAutoRec(channel === "fm90" ? "fm90" : "sevinchim", Boolean(enabled));
     return { ok: true, message: enabled ? "Автоматик ёзиш ёқилди" : "Автоматик ёзиш ўчирилди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
+}
+
+export async function saveFm90ScheduleAction(v: { days: number[]; start: string; end: string }): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const days = [...new Set((Array.isArray(v?.days) ? v.days : []).map(Number))]
+      .filter((d) => Number.isInteger(d) && d >= 1 && d <= 7)
+      .sort() as Weekday[];
+    const start = str(v?.start, 5);
+    const end = str(v?.end, 5);
+    if (!isTime(start) || !isTime(end)) throw new Error("Вақтни ЧЧ:ДД кўринишида киритинг");
+    if (start === end) throw new Error("Бошланиш ва тугаш вақти бир хил бўлмасин");
+    await autorec.setFm90Schedule({ days, start, end });
+    return { ok: true, message: "Жадвал сақланди" };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
   }
