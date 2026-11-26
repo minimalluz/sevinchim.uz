@@ -461,6 +461,33 @@ export async function handleUpdate(u: Update) {
     return;
   }
 
+  /* Сайт фойдаланувчисига админ мақоми: «/admin +998 90 123 45 67» ёки «/admin_ol …»
+     (рақам кодда ёки репозиторийда сақланмайди — фақат шу чатда) */
+  if (cmd === "/admin" || cmd === "/admin_ol") {
+    const grant = cmd === "/admin";
+    const who = rest.join(" ").trim();
+    if (!who) {
+      return void (await send(chat, `Фойдаланиш: <code>${cmd} +998 90 123 45 67</code> (ёки логин)\nФойдаланувчи аввал сайтда рўйхатдан ўтган бўлиши керак.`, { reply_markup: KEYBOARD }));
+    }
+    try {
+      const users = await import("./users");
+      const premium = await import("./premium");
+      const u = users.findByIdentifier(who);
+      if (!u) throw new Error("Бу рақам ёки логин билан фойдаланувчи топилмади. Аввал сайтда рўйхатдан ўтсин.");
+      premium.adminSetRole(u.id, grant, { ip: "telegram", actor: `telegram:${msg.from.id}` });
+      await send(
+        chat,
+        grant
+          ? `✅ <b>${esc(u.name)}</b> (${esc(users.formatPhone(u.phone))}) — энди <b>АДМИН</b>.\nУ ${SITE_URL}/admin га ўз телефони ва пароли билан киради.`
+          : `✅ <b>${esc(u.name)}</b> дан админ мақоми олинди.`,
+        { reply_markup: KEYBOARD },
+      );
+    } catch (e) {
+      await send(chat, `❌ ${esc((e as Error).message)}`, { reply_markup: KEYBOARD });
+    }
+    return;
+  }
+
   if (cmd === "/holat" || text === BTN_STATUS) {
     return void (await send(chat, await statusText(), { reply_markup: KEYBOARD }));
   }
