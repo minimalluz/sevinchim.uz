@@ -86,6 +86,46 @@ async function send(chatId: number, text: string, extra: object = {}) {
   );
 }
 
+/** Битта чатга хабар (тингловчиларга: тўлов тасдиқланди, тиклаш коди ва ҳ.к.) */
+export async function sendToChat(chatId: number, text: string, extra: object = {}) {
+  await send(chatId, text, extra);
+}
+
+/** Бот номи (тингловчи профилида «Telegram'ни улаш» ҳаволаси учун) */
+export async function botUsername() {
+  return (await getSettings())?.username ?? null;
+}
+
+/** Янги тўлов — админларга чек ва тасдиқлаш тугмалари */
+export async function notifyNewPayment(p: { id: number; amount: number; userName: string; phone: string; comment: string | null }, receipt: { file: string; type: string } | null) {
+  const s = await getSettings();
+  if (!s) return;
+  const text =
+    `💳 <b>Янги тўлов #${p.id}</b>\n${esc(p.userName)} • ${esc(p.phone)}\nСумма: ${p.amount.toLocaleString("ru-RU")} сўм` +
+    (p.comment ? `\nИзоҳ: ${esc(p.comment)}` : "") +
+    `\n\nЧекни текширинг ва қарор қилинг:`;
+  const markup = { inline_keyboard: [[{ text: "✅ Тасдиқлаш", callback_data: `pay:ok:${p.id}` }, { text: "❌ Рад этиш", callback_data: `pay:no:${p.id}` }]] };
+  const { openAsBlob } = await import("node:fs");
+  for (const a of s.admins) {
+    try {
+      if (receipt && receipt.type.startsWith("image/") && receipt.type !== "image/heic") {
+        const form = new FormData();
+        form.append("chat_id", String(a.id));
+        form.append("caption", text);
+        form.append("parse_mode", "HTML");
+        form.append("reply_markup", JSON.stringify(markup));
+        form.append("photo", await openAsBlob(receipt.file, { type: receipt.type }), "chek");
+        const r = await fetch(`${API}/bot${s.token}/sendPhoto`, { method: "POST", body: form, signal: AbortSignal.timeout(60000) });
+        const d = (await r.json().catch(() => ({}))) as ApiResult<unknown>;
+        if (d.ok) continue;
+      }
+      await send(a.id, text + `\nЧек: ${SITE_URL}/admin (Тўловлар)`, { reply_markup: markup });
+    } catch (e) {
+      console.error("[telegram] notifyNewPayment:", (e as Error).message);
+    }
+  }
+}
+
 /** Барча уланган админларга хабар */
 export async function notifyAdmins(text: string, extra: object = {}) {
   const s = await getSettings();
@@ -258,6 +298,27 @@ export async function handleUpdate(u: Update) {
     const q = u.callback_query;
     const ack = (text: string) => api(s.token, "answerCallbackQuery", { callback_query_id: q.id, text }).catch(() => undefined);
     if (!isAdmin(q.from.id)) return void (await ack("Рухсат йўқ"));
+    const pm = /^pay:(ok|no):(\d+)$/.exec(q.data || "");
+    if (pm) {
+      const premium = await import("./premium");
+      const id = Number(pm[2]);
+      const who = `telegram:${q.from.id}`;
+      try {
+        if (pm[1] === "ok") {
+          const r = premium.approvePayment(id, who);
+          await ack("Тасдиқланди ✅");
+          if (q.message) await send(q.message.chat.id, `✅ Тўлов #${id} тасдиқланди. ${esc(r.user.name)} — Premium ${premium.fmtDate(r.until)} гача.`);
+        } else {
+          premium.rejectPayment(id, "Тўлов топилмади ёки чек нотўғри", who);
+          await ack("Рад этилди");
+          if (q.message) await send(q.message.chat.id, `❌ Тўлов #${id} рад этилди. Бошқа сабаб ёзиш учун: ${SITE_URL}/admin`);
+        }
+      } catch (e) {
+        await ack((e as Error).message.slice(0, 190));
+      }
+      if (q.message) await api(s.token, "editMessageReplyMarkup", { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => undefined);
+      return;
+    }
     const m = /^pub:([\w-]+)$/.exec(q.data || "");
     if (!m) return void (await ack(""));
     let title = "";
@@ -287,6 +348,19 @@ export async function handleUpdate(u: Update) {
   const [cmdRaw, ...rest] = text.split(/\s+/);
   const cmd = cmdRaw.replace(/@\w+$/, "").toLowerCase();
 
+  /* Тингловчи профилини улаш: сайтдаги «Telegram'ни улаш» → /start u_<калит> */
+  if (cmd === "/start" && /^u_[\w-]{20,64}$/.test(rest[0] || "")) {
+    const users = await import("./users");
+    const uid = users.checkToken("tg_link", rest[0].slice(2), true);
+    if (!uid) return void (await send(chat, "❌ Ҳавола эскирган. Сайтдаги профилингиздан «Telegram'ни улаш»ни қайта босинг."));
+    users.linkTelegram(uid, msg.from.id, msg.from.username ? "@" + msg.from.username : msg.from.first_name || "Telegram");
+    return void (await send(
+      chat,
+      "✅ <b>Telegram профилингизга уланди!</b>\nЭнди паролни унутсангиз, тиклаш коди шу ерга келади. Тўлов натижаси ҳам шу ерда хабар қилинади.",
+      { reply_markup: { remove_keyboard: true } },
+    ));
+  }
+
   /* Улаш: «/ulash 123456», «/start 123456» ёки шунчаки «123456» */
   const code = /^\d{6}$/.test(text) ? text : /^\/(ulash|start)$/.test(cmd) && /^\d{6}$/.test(rest[0] || "") ? rest[0] : "";
   if (code) {
@@ -299,9 +373,13 @@ export async function handleUpdate(u: Update) {
   }
 
   if (!isAdmin(msg.from.id)) {
+    const users = await import("./users");
+    const u = users.findByTelegram(msg.from.id);
     return void (await send(
       chat,
-      "Бу бот Севинчим сайтининг бошқарув боти.\nУланиш учун админ-панелдаги «Telegram» бўлимидан 6 хонали кодни олиб, шу ерга юборинг.",
+      u
+        ? `Салом, ${esc(u.name)}! 👋\nБу бот орқали сизга тўлов натижаси ва пароль тиклаш коди юборилади.\nПрофилингиз: ${SITE_URL}/profil`
+        : `Салом! 👋 Бу — Севинчим сайтининг боти.\nПрофилингизни улаш учун сайтда «Менинг профилим» → «Telegram'ни улаш»ни босинг: ${SITE_URL}/profil`,
     ));
   }
 

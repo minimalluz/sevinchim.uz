@@ -3,7 +3,7 @@
  * - Саҳифалар: аввал тармоқдан, интернет бўлмаса — кэшдан
  * - Радио оқими ва аудиолар (Range сўровлари) кэшланмайди
  */
-const VERSION = "sv-v1";
+const VERSION = "sv-v2";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const SHELL = ["/", "/fm-radio", "/arxiv", "/haqida", "/media", "/icons/icon.svg", "/icons/icon-192.png"];
@@ -27,7 +27,8 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET" || req.headers.has("range")) return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // радио оқими ва ташқи манбалар
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/admin")) return;
+  // Шахсий саҳифалар кэшланмайди (умумий қурилмада бошқа одам кўрмасин)
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/admin") || url.pathname.startsWith("/profil")) return;
 
   // Next.js статик файллари, шрифтлар, иконкалар: кэш биринчи
   if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/_next/image")) {

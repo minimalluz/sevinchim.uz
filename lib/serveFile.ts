@@ -32,7 +32,9 @@ export async function serveFile(
     "Last-Modified": mtime.toUTCString(),
   };
   if (opts.download) {
-    headers["Content-Disposition"] = `attachment; filename="${opts.download.replace(/[^\w.-]/g, "_")}"`;
+    // Кирилл номлар учун: filename* (RFC 5987), эски браузерлар учун лотин нусхаси
+    const ascii = opts.download.replace(/[^\w.-]/g, "_");
+    headers["Content-Disposition"] = `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(opts.download)}`;
   }
 
   if (req.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers });

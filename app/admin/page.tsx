@@ -3,6 +3,7 @@ import { getContent } from "@/lib/content";
 import { adminConfigured, isAdmin } from "@/lib/auth";
 import { AdminDashboard } from "@/components/admin/AdminDashboard";
 import { LoginForm } from "@/components/admin/LoginForm";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -27,5 +28,6 @@ export default async function AdminPage() {
   if (!(await isAdmin())) return <LoginForm />;
 
   const content = await getContent();
-  return <AdminDashboard content={content} />;
+  const pending = Number((db().prepare("SELECT count(*) n FROM payments WHERE status = 'pending'").get() as { n: number }).n);
+  return <AdminDashboard content={content} pendingPayments={pending} />;
 }

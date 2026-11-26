@@ -2,18 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconArchive, IconHome, IconImage, IconRadio, IconUser, Equalizer } from "./icons";
+import { IconArchive, IconHome, IconImage, IconProfile, IconRadio, IconUser, Equalizer } from "./icons";
+import { useUser } from "./UserProvider";
 import { usePlayer } from "./player/PlayerProvider";
 import { useSiteData } from "./SiteData";
 import { openLivePopup } from "./livePopup";
 
 export const NAV = [
-  { href: "/", label: "Бош саҳифа", icon: IconHome },
-  { href: "/fm-radio", label: "FM Радио", icon: IconRadio },
-  { href: "/arxiv", label: "Архив", icon: IconArchive },
-  { href: "/haqida", label: "Мен ҳақимда", icon: IconUser },
-  { href: "/media", label: "Медиа", icon: IconImage },
+  { href: "/", label: "Бош саҳифа", short: "Бош", icon: IconHome },
+  { href: "/fm-radio", label: "FM Радио", short: "Радио", icon: IconRadio },
+  { href: "/arxiv", label: "Архив", short: "Архив", icon: IconArchive },
+  { href: "/haqida", label: "Мен ҳақимда", short: "Ҳақида", icon: IconUser },
+  { href: "/media", label: "Медиа", short: "Медиа", icon: IconImage },
 ];
+
+/** «Менинг профилим» — пастки менюда олтинчи банд */
+const PROFILE = { href: "/profil", label: "Профил", short: "Профил", icon: IconProfile };
 
 const isActive = (path: string, href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
@@ -27,10 +31,10 @@ export function SiteHeader({ name }: { name: string }) {
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/5 bg-bg/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 lg:gap-6">
         <Link href="/" className="flex items-center gap-2.5 font-display text-lg font-bold" aria-label="Севинчим — бош саҳифа">
           <img src="/icons/icon.svg" alt="" width={36} height={36} className="rounded-xl" />
-          <span className="max-[359px]:sr-only">Севинчим</span>
+          <span className="max-[359px]:sr-only md:max-lg:sr-only">Севинчим</span>
         </Link>
 
         <nav className="ml-auto hidden items-center gap-1 md:flex" aria-label="Асосий меню">
@@ -41,7 +45,7 @@ export function SiteHeader({ name }: { name: string }) {
                 key={n.href}
                 href={n.href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-full px-4 py-2 text-[15px] font-medium transition-colors ${
+                className={`whitespace-nowrap rounded-full px-2.5 py-2 text-sm font-medium transition-colors lg:px-4 lg:text-[15px] ${
                   active ? "bg-white/10 text-ink" : "text-muted hover:text-ink"
                 }`}
               >
@@ -74,8 +78,33 @@ export function SiteHeader({ name }: { name: string }) {
             Жонли эфир
           </Link>
         )}
+        <ProfileButton active={path.startsWith("/profil")} />
       </div>
     </header>
+  );
+}
+
+/** Сарлавҳадаги «Менинг профилим»: кирган бўлса — исм бош ҳарфи */
+function ProfileButton({ active }: { active: boolean }) {
+  const { user } = useUser();
+  return (
+    <Link
+      href="/profil"
+      aria-current={active ? "page" : undefined}
+      className={`hidden min-h-11 items-center gap-2 whitespace-nowrap rounded-full px-3 text-[15px] font-medium transition-colors md:inline-flex ${
+        active ? "bg-white/10 text-ink" : "text-muted hover:text-ink"
+      }`}
+    >
+      {user ? (
+        <span className={`grid size-8 place-items-center rounded-full text-sm font-bold text-white ${user.premium ? "bg-gradient-to-br from-gold to-brand" : "bg-brand-gradient"}`} aria-hidden>
+          {user.name.trim()[0]?.toUpperCase()}
+        </span>
+      ) : (
+        <IconProfile width={22} height={22} />
+      )}
+      <span className="hidden xl:inline">{user ? "Менинг профилим" : "Кириш"}</span>
+      <span className="sr-only xl:hidden">Менинг профилим</span>
+    </Link>
   );
 }
 
@@ -87,8 +116,8 @@ export function BottomTabBar() {
       style={{ paddingBottom: "var(--safe-b)" }}
       aria-label="Пастки меню"
     >
-      <ul className="grid h-[var(--tabbar-h)] grid-cols-5">
-        {NAV.map((n) => {
+      <ul className="grid h-[var(--tabbar-h)] grid-cols-6">
+        {[...NAV, PROFILE].map((n) => {
           const active = isActive(path, n.href);
           const Icon = n.icon;
           return (
@@ -96,14 +125,16 @@ export function BottomTabBar() {
               <Link
                 href={n.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex h-full min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[11px] font-medium leading-none transition-colors ${
+                className={`flex h-full min-h-12 min-w-0 flex-col items-center justify-center gap-1 text-[10.5px] font-medium leading-none transition-colors ${
                   active ? "text-brand" : "text-muted"
                 }`}
               >
-                <span className={`grid h-7 w-12 place-items-center rounded-full transition ${active ? "bg-brand/15" : ""}`}>
+                <span className={`grid h-7 w-11 place-items-center rounded-full transition ${active ? "bg-brand/15" : ""}`}>
                   <Icon width={22} height={22} />
                 </span>
-                <span className="whitespace-nowrap">{n.label}</span>
+                {/* Тор экранларда (375px дан кичик) — қисқа номлар */}
+                <span className="whitespace-nowrap max-[374px]:hidden">{n.label}</span>
+                <span className="whitespace-nowrap min-[375px]:hidden">{n.short}</span>
               </Link>
             </li>
           );

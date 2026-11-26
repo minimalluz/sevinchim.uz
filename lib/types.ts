@@ -64,6 +64,10 @@ export type Episode = {
   audio: string;
   /** Қоралама: сайтда кўринмайди (масалан, эфирдан ёзиб олинган, ҳали текширилмаган) */
   draft?: boolean;
+  /** Ким тинглай олади: йўқ — очиқ (ҳамма), «premium» — фақат Premium обуначилар */
+  access?: "premium";
+  /** false — Premium обуначилар ҳам юклаб ололмайди (стандарт: рухсат) */
+  download?: boolean;
 };
 
 export type GalleryItem = {

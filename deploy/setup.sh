@@ -58,7 +58,8 @@ fi
 step "2/8 Node.js"
 need_node=1
 if command -v node >/dev/null 2>&1; then
-  if [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 20 ]; then need_node=0; fi
+  # node:sqlite (фойдаланувчилар базаси) Node 22.13+ да ишлайди
+  if node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=13)?0:1)'; then need_node=0; fi
 fi
 if [ "$need_node" -eq 1 ]; then
   if [ -n "$SUDO" ]; then

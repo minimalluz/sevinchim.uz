@@ -5,6 +5,7 @@ import { getContent } from "@/lib/content";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { PlayerProvider } from "@/components/player/PlayerProvider";
 import { MiniPlayer } from "@/components/player/MiniPlayer";
+import { UserProvider } from "@/components/UserProvider";
 import { SiteDataProvider } from "@/components/SiteData";
 import { BottomTabBar, SiteFooter, SiteHeader } from "@/components/Navigation";
 import { ServiceWorkerRegister } from "@/components/ServiceWorker";
@@ -80,6 +81,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             liveFallback: liveFallback?.url ? liveFallback : null,
           }}
         >
+          <UserProvider>
           <PlayerProvider streams={streams} hostName={profile.name} station={profile.station}>
             <SiteHeader name={profile.name} />
             <main id="main" className="page-pad mx-auto max-w-6xl px-4">
@@ -89,6 +91,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <MiniPlayer />
             <BottomTabBar />
           </PlayerProvider>
+          </UserProvider>
         </SiteDataProvider>
         <ServiceWorkerRegister />
       </body>

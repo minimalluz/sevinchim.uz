@@ -6,6 +6,7 @@ import type { Announcement, Episode, LiveFallback, ScheduleSlot, SiteContent, St
 import { WEEKDAYS, formatDate, formatDuration, formatTime, onAir } from "@/lib/format";
 import type { RecordingStatus } from "@/lib/recorder";
 import { UPLOAD_CHUNK } from "@/lib/audio";
+import { PaymentsAdmin, PremiumAdmin, UsersAdmin } from "./MembersAdmin";
 import {
   addEpisode, autoRecAction, deleteEpisode, saveFm90ScheduleAction, setAutoRecAction, logout, publishEpisode, recordingStatusAction, saveAnnouncements, saveSchedule,
   saveStreams, startRecordingAction, stopRecordingAction, updateEpisode,
@@ -60,11 +61,15 @@ const TABS = [
   { id: "news", label: "Анонслар" },
   { id: "fm90", label: "FM90.8" },
   { id: "telegram", label: "Telegram" },
+  { id: "users", label: "Фойдаланувчилар" },
+  { id: "payments", label: "Тўловлар" },
+  { id: "premium", label: "Premium" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
 
-export function AdminDashboard({ content }: { content: SiteContent }) {
-  const [tab, setTab] = useState<Tab>("archive");
+export function AdminDashboard({ content, pendingPayments = 0 }: { content: SiteContent; pendingPayments?: number }) {
+  // Текширилмаган тўлов бўлса — панел шу бўлимдан очилади
+  const [tab, setTab] = useState<Tab>(pendingPayments > 0 ? "payments" : "archive");
   return (
     <div className="py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -82,6 +87,9 @@ export function AdminDashboard({ content }: { content: SiteContent }) {
             className={`min-h-11 shrink-0 rounded-full px-5 text-sm font-semibold ${tab === t.id ? "bg-ink text-bg" : "bg-surface text-muted"}`}
           >
             {t.label}
+            {t.id === "payments" && pendingPayments > 0 && (
+              <span className="ml-2 rounded-full bg-live px-2 py-0.5 text-xs font-bold text-white">{pendingPayments}</span>
+            )}
           </button>
         ))}
       </div>
@@ -100,6 +108,9 @@ export function AdminDashboard({ content }: { content: SiteContent }) {
         {tab === "news" && <NewsAdmin initial={content.announcements} />}
         {tab === "fm90" && <Fm90Admin />}
         {tab === "telegram" && <TelegramAdmin />}
+        {tab === "users" && <UsersAdmin />}
+        {tab === "payments" && <PaymentsAdmin />}
+        {tab === "premium" && <PremiumAdmin />}
       </div>
     </div>
   );
@@ -202,6 +213,25 @@ function EpisodeFields({ value, onChange, rubrics }: { value: Partial<Episode>; 
       <Field label="Қисқача тавсиф" className="md:col-span-2">
         <textarea className={`${input} min-h-24 py-2`} value={value.description ?? ""} onChange={(e) => onChange({ ...value, description: e.target.value })} maxLength={2000} />
       </Field>
+      <Field label="Ким тинглай олади">
+        <select
+          className={input}
+          value={value.access === "premium" ? "premium" : "free"}
+          onChange={(e) => onChange({ ...value, access: e.target.value === "premium" ? "premium" : undefined })}
+        >
+          <option value="free">Очиқ (FREE) — ҳамма тинглайди</option>
+          <option value="premium">PREMIUM — фақат обуначилар</option>
+        </select>
+      </Field>
+      <label className="flex min-h-11 items-center gap-2 self-end text-sm">
+        <input
+          type="checkbox"
+          className="size-5 accent-[var(--color-brand)]"
+          checked={value.download !== false}
+          onChange={(e) => onChange({ ...value, download: e.target.checked ? undefined : false })}
+        />
+        Premium обуначилар юклаб ола олади
+      </label>
     </div>
   );
 }
@@ -540,6 +570,7 @@ function ArchiveAdmin({
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold">
                       {ep.draft && <span className="mr-2 rounded-full bg-gold/15 px-2 py-0.5 text-xs font-bold text-gold">Қоралама</span>}
+                      {ep.access === "premium" && <span className="mr-2 rounded-full bg-gradient-to-r from-gold to-brand px-2 py-0.5 text-xs font-bold text-bg">PREMIUM</span>}
                       {ep.title}
                     </p>
                     <p className="text-xs text-muted">{ep.rubric} • {formatDate(ep.date)} • {formatDuration(ep.duration)}</p>

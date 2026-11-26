@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Episode } from "@/lib/types";
 import { MONTHS_CAP, formatDate, formatDuration } from "@/lib/format";
 import { usePlayer } from "./player/PlayerProvider";
 import { RateSelector, SeekBar, SkipButton, PlayPauseButton, Spinner } from "./player/Controls";
-import { Equalizer, IconCalendar, IconClock, IconPause, IconPlay } from "./icons";
+import { Equalizer, IconCalendar, IconClock, IconDownload, IconLock, IconPause, IconPlay } from "./icons";
+import { useUser } from "./UserProvider";
 
 const RUBRIC_COLORS = ["#ff6a3d", "#e0457b", "#a78bfa", "#3ed6a6", "#ffb547", "#5fb4ff"];
 export const rubricColor = (rubric: string, all: string[]) =>
@@ -18,6 +20,10 @@ export function EpisodeCard({ ep, rubrics }: { ep: Episode; rubrics: string[] })
   const loading = current && status === "loading";
   const color = rubricColor(ep.rubric, rubrics);
   const pct = current && duration > 0 ? (currentTime / duration) * 100 : 0;
+  const { user } = useUser();
+  const locked = ep.access === "premium" && !user?.premium;
+  const canDownload = Boolean(user?.premium) && ep.download !== false && ep.audio.startsWith("/api/audio/");
+  const [prompt, setPrompt] = useState(false);
 
   return (
     <article
@@ -28,25 +34,52 @@ export function EpisodeCard({ ep, rubrics }: { ep: Episode; rubrics: string[] })
     >
       <button
         type="button"
-        onClick={() => (current ? toggle() : playEpisode(ep))}
-        aria-label={playing ? `Пауза: ${ep.title}` : `Тинглаш: ${ep.title}`}
+        onClick={() => (locked ? setPrompt((p) => !p) : current ? toggle() : playEpisode(ep))}
+        aria-label={locked ? `Premium: ${ep.title}` : playing ? `Пауза: ${ep.title}` : `Тинглаш: ${ep.title}`}
+        aria-expanded={locked ? prompt : undefined}
         className="relative grid size-14 shrink-0 place-items-center rounded-2xl text-white transition active:scale-95"
         style={{ background: `linear-gradient(135deg, ${color}, ${color}99)` }}
       >
-        {loading ? <Spinner className="size-5 border-2" /> : playing ? <IconPause width={22} height={22} /> : <IconPlay width={22} height={22} className="translate-x-px" />}
+        {locked ? <IconLock width={22} height={22} /> : loading ? <Spinner className="size-5 border-2" /> : playing ? <IconPause width={22} height={22} /> : <IconPlay width={22} height={22} className="translate-x-px" />}
       </button>
 
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-xs font-semibold" style={{ color }}>
           {ep.rubric}
           {playing && <Equalizer className="h-3" />}
+          {ep.access === "premium" && (
+            <span className="rounded-full bg-gradient-to-r from-gold to-brand px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-bg">PREMIUM</span>
+          )}
         </p>
         <h3 className="mt-1 font-semibold leading-snug">{ep.title}</h3>
         <p className="mt-1 line-clamp-2 text-sm text-muted">{ep.description}</p>
         <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
           <span className="inline-flex items-center gap-1"><IconCalendar width={14} height={14} />{formatDate(ep.date)}</span>
           <span className="inline-flex items-center gap-1"><IconClock width={14} height={14} />{formatDuration(ep.duration)}</span>
+          {canDownload && (
+            <a
+              href={`${ep.audio}?dl=1`}
+              className="inline-flex min-h-9 items-center gap-1 rounded-full bg-white/8 px-3 font-semibold text-ink transition hover:bg-white/15"
+              aria-label={`Юклаб олиш: ${ep.title}`}
+            >
+              <IconDownload width={14} height={14} /> Юклаб олиш
+            </a>
+          )}
         </p>
+        {locked && prompt && (
+          <div className="mt-3 rounded-2xl border border-gold/30 bg-gold/10 p-3 text-sm" role="status">
+            <p className="font-semibold text-gold">Бу дастур Premium обуначилар учун</p>
+            <p className="mt-1 text-muted">
+              {user ? "Premium обуна билан барча дастурларни тинглаш ва юклаб олиш мумкин." : "Тинглаш учун тизимга киринг ва Premium обуна бўлинг."}
+            </p>
+            <Link
+              href={user ? "/profil/premium" : "/profil?next=/profil/premium"}
+              className="mt-2 inline-flex min-h-11 items-center rounded-full bg-brand-gradient px-4 font-semibold text-white"
+            >
+              {user ? "Premium сотиб олиш" : "Кириш / Рўйхатдан ўтиш"}
+            </Link>
+          </div>
+        )}
         {current && (
           <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/10" aria-hidden>
             <div className="h-full bg-brand transition-[width]" style={{ width: `${pct}%` }} />

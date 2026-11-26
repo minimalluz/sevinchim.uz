@@ -76,3 +76,15 @@ export function Equalizer({ active = true, className = "" }: { active?: boolean;
     </span>
   );
 }
+export const IconProfile = (p: P) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="9.5" /><circle cx="12" cy="10" r="3.2" /><path d="M6.2 18.6a7 7 0 0 1 11.6 0" /></svg>
+);
+export const IconLock = (p: P) => (
+  <svg {...base(p)}><rect x="4.5" y="10.5" width="15" height="10" rx="2.5" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg>
+);
+export const IconCrown = (p: P) => (
+  <svg {...base(p)}><path d="M3.5 8.5 7.5 12l4.5-6.5L16.5 12l4-3.5-1.8 10H5.3z" /></svg>
+);
+export const IconCopy = (p: P) => (
+  <svg {...base(p)}><rect x="8.5" y="8.5" width="12" height="12" rx="2.5" /><path d="M15.5 8.5V5.5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3" /></svg>
+);

@@ -115,6 +115,8 @@ function cleanEpisode(e: Partial<Episode>): Omit<Episode, "id"> {
     duration: Math.max(0, Math.round(Number(e.duration) || 0)),
     description: str(e.description, 2000),
     audio: str(e.audio, 1000),
+    ...(e.access === "premium" ? { access: "premium" as const } : {}),
+    ...(e.download === false ? { download: false } : {}),
   };
   if (!ep.title) throw new Error("Эшиттириш номини киритинг");
   if (!ep.rubric) throw new Error("Рукнни танланг");
