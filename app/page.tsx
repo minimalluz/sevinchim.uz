@@ -4,6 +4,7 @@ import { getPublicContent as getContent } from "@/lib/content";
 import { formatDate } from "@/lib/format";
 import { ListenLiveButton, LiveFallbackHint, NextAirText, NowOnAirCard } from "@/components/Radio";
 import { EpisodeCard } from "@/components/Archive";
+import { SupportPremium } from "@/components/SupportPremium";
 import { SectionTitle } from "@/components/ui";
 import { IconArchive } from "@/components/icons";
 
@@ -84,6 +85,11 @@ export default async function HomePage() {
         </div>
       </section>
       )}
+
+      {/* Сайтни қўллаб-қувватлаш — PREMIUM */}
+      <div className="mt-12">
+        <SupportPremium />
+      </div>
 
       {/* Анонслар */}
       {announcements.length > 0 && (
