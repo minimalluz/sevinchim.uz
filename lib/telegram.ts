@@ -239,9 +239,11 @@ async function statusText() {
   const next = air.current ? `Ҳозир эфирда: ${esc(air.current.title)}` : air.next ? `Кейинги эфир: ${esc(air.next.title)}, ${air.next.start}` : "";
   const { getFm90Settings } = await import("./fm90");
   const fm = await getFm90Settings();
+  const auto = await (await import("./autorec")).autoRecLine().catch(() => "");
   return [
     recLine("Севинчим эфири", a) + (c.streams.length ? "" : "\n   ⚠️ «FM оқим» манзили киритилмаган"),
     recLine("FM90.8", b) + (fm.streamUrl ? "" : "\n   ⚠️ «FM90.8» оқим манзили киритилмаган"),
+    auto,
     next,
   ].filter(Boolean).join("\n\n");
 }

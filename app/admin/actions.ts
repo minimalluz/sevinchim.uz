@@ -10,6 +10,7 @@ import { SAFE_NAME } from "@/lib/audio";
 import * as recorder from "@/lib/recorder";
 import * as telegram from "@/lib/telegram";
 import * as fm90 from "@/lib/fm90";
+import * as autorec from "@/lib/autorec";
 import {
   checkPassword, createSession, destroySession, loginFailed, loginThrottle, requireAdmin,
 } from "@/lib/auth";
@@ -294,6 +295,26 @@ export async function stopRecordingAction(): Promise<ActionResult> {
     await requireAdmin();
     await recorder.stopRecording();
     return { ok: true, message: "Ёзиш тўхтатилди — архивга қоралама бўлиб тушди" };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
+  }
+}
+
+export async function autoRecAction(): Promise<(autorec.AutoRecInfo & { nextLabel: string | null }) | null> {
+  try {
+    await requireAdmin();
+    const a = await autorec.getAutoRec();
+    return { ...a, nextLabel: a.next ? autorec.whenLabel(a.next.startsAt) : null };
+  } catch {
+    return null;
+  }
+}
+
+export async function setAutoRecAction(enabled: boolean): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    await autorec.setAutoRec(Boolean(enabled));
+    return { ok: true, message: enabled ? "Автоматик ёзиш ёқилди" : "Автоматик ёзиш ўчирилди" };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
   }

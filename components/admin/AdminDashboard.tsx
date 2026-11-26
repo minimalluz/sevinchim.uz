@@ -7,7 +7,7 @@ import { WEEKDAYS, formatDate, formatDuration, formatTime, onAir } from "@/lib/f
 import type { RecordingStatus } from "@/lib/recorder";
 import { UPLOAD_CHUNK } from "@/lib/audio";
 import {
-  addEpisode, deleteEpisode, logout, publishEpisode, recordingStatusAction, saveAnnouncements, saveSchedule,
+  addEpisode, autoRecAction, deleteEpisode, setAutoRecAction, logout, publishEpisode, recordingStatusAction, saveAnnouncements, saveSchedule,
   saveStreams, startRecordingAction, stopRecordingAction, updateEpisode,
   telegramConnectAction, telegramDisconnectAction, telegramInfoAction, telegramLinkCodeAction, telegramRemoveAdminAction,
   fm90DeleteAction, fm90InfoAction, fm90SaveSettingsAction, fm90StartAction, fm90StatusAction, fm90StopAction,
@@ -209,6 +209,58 @@ function EpisodeFields({ value, onChange, rubrics }: { value: Partial<Episode>; 
 /* ---------- Эфирни ёзиб олиш ---------- */
 const clock = (ms: number) => new Date(ms + 5 * 3600e3).toISOString().slice(11, 16); // Тошкент вақти
 
+/** Жадвал бўйича автоматик ёзиш — ёқиш/ўчириш */
+function AutoRecToggle({ hasStream, info, reload }: {
+  hasStream: boolean;
+  info: Awaited<ReturnType<typeof autoRecAction>>;
+  reload: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const toggle = async () => {
+    if (!info) return;
+    setBusy(true);
+    setErr(null);
+    const r = await setAutoRecAction(!info.enabled);
+    if (!r.ok) setErr(r.error);
+    // Ёқилганда эфир ҳозир бошланса — ёзиш бир неча сонияда ўзи бошланади
+    await reload();
+    setBusy(false);
+  };
+
+  if (!info) return null;
+  return (
+    <div className="mt-4 rounded-2xl border border-white/8 bg-bg/40 p-4">
+      <label className="flex cursor-pointer items-start gap-3">
+        <input
+          type="checkbox"
+          className="mt-1 size-5 shrink-0 accent-[var(--color-brand)]"
+          checked={info.enabled}
+          disabled={busy || (!hasStream && !info.enabled)}
+          onChange={toggle}
+        />
+        <span>
+          <span className="font-semibold">Жадвал бўйича автоматик ёзиш</span>
+          <span className="mt-1 block text-sm text-muted">
+            «Эфир жадвали»да <b className="text-ink">ўз дастури</b> белгиланган ҳар бир эфир бошланишидан 2 дақиқа олдин ёзиш ўзи бошланади,
+            тугагандан 5 дақиқа кейин ўзи тўхтайди. Ёзув архивга қоралама бўлиб тушади. Эрта тўхтатсангиз, шу эфир қайта ёзилмайди.
+          </span>
+          {info.enabled && info.next && (
+            <span className="mt-2 block text-sm font-semibold text-mint">
+              Кейинги ёзув: «{info.next.title}», {info.nextLabel}
+            </span>
+          )}
+          {info.enabled && !info.next && (
+            <span className="mt-2 block text-sm text-gold">Жадвалда «ўз дастури» белгиланган эфир йўқ.</span>
+          )}
+        </span>
+      </label>
+      {err && <p className="mt-2 text-sm font-semibold text-live" role="alert">{err}</p>}
+    </div>
+  );
+}
+
 function RecorderPanel({ rubrics, schedule, hasStream }: { rubrics: string[]; schedule: ScheduleSlot[]; hasStream: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState<RecordingStatus | null>(null);
@@ -217,6 +269,11 @@ function RecorderPanel({ rubrics, schedule, hasStream }: { rubrics: string[]; sc
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<ActionResult | null>(null);
   const wasActive = useRef(false);
+  const [auto, setAuto] = useState<Awaited<ReturnType<typeof autoRecAction>>>(null);
+  const loadAuto = useCallback(async () => setAuto(await autoRecAction()), []);
+  useEffect(() => {
+    void loadAuto();
+  }, [loadAuto, status?.active]);
 
   const poll = useCallback(async () => {
     const st = await recordingStatusAction();
@@ -293,7 +350,11 @@ function RecorderPanel({ rubrics, schedule, hasStream }: { rubrics: string[]; sc
             <div className="text-sm text-muted">
               <p><b className="text-ink">{status.rubric}</b></p>
               <p>{((status.bytes ?? 0) / 1048576).toFixed(1)} МБ ёзилди</p>
-              <p>Автоматик тўхтайди: {clock((status.startedAt ?? 0) + status.maxSeconds * 1000)} да</p>
+              <p>
+                {auto?.stopsAt
+                  ? <>Жадвал бўйича ўзи тўхтайди: {clock(auto.stopsAt)} да</>
+                  : <>Автоматик тўхтайди: {clock((status.startedAt ?? 0) + status.maxSeconds * 1000)} да</>}
+              </p>
             </div>
           </div>
           {!status.connected && <p className="text-sm text-gold" role="status">Оқимга қайта уланмоқда…</p>}
@@ -334,6 +395,7 @@ function RecorderPanel({ rubrics, schedule, hasStream }: { rubrics: string[]; sc
       )}
       {status?.lastError && <p className="mt-2 text-sm text-gold" role="status">{status.lastError}</p>}
       {msg && !msg.ok && <p className="mt-2 text-sm font-semibold text-live" role="alert">{msg.error}</p>}
+      <AutoRecToggle hasStream={hasStream} info={auto} reload={loadAuto} />
     </section>
   );
 }

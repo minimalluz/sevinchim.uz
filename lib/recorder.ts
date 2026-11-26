@@ -7,7 +7,7 @@ import { AUDIO_DIR, DATA_DIR, ensureDataDir, getContent, updateContent } from ".
 import { formatDate } from "./format";
 
 /**
- * Радио оқимини ёзиб олиш (фақат админ буйруғи билан).
+ * Радио оқимини ёзиб олиш: админ буйруғи билан ёки жадвал бўйича (lib/autorec.ts).
  *
  * Иккита мустақил «канал» бор, улар бир вақтда ишлай олади:
  *   • sevinchim — Севинчнинг эфири: оқим «FM оқим» бўлимидан, ёзув сайт
@@ -394,7 +394,13 @@ const sevinchim = new Recorder({
 });
 
 export const startRecording = (rubric: string) => sevinchim.start(rubric);
-export const stopRecording = () => sevinchim.stop();
+/** Админ қўлда тўхтатди (панел ёки Telegram) — автомат шу эфирни қайта бошламайди */
+export async function stopRecording() {
+  await import("./autorec").then((m) => m.noteManualStop()).catch((e) => console.error("[autorec]", e));
+  await sevinchim.stop();
+}
+/** Жадвал бўйича автомат тўхтатиш */
+export const stopRecordingAuto = () => sevinchim.stop();
 export const recordingStatus = () => sevinchim.status();
 
 /* ---------- Канал 2: FM 90.8 → DATA_DIR/FM90 папкаси ---------- */
