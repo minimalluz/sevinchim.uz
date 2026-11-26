@@ -48,13 +48,32 @@ export async function destroySession() {
   (await cookies()).delete(COOKIE);
 }
 
-export async function isAdmin() {
+/** Админ пароли билан кирилганми (cookie) */
+async function passwordSession() {
   if (!adminConfigured()) return false;
   const raw = (await cookies()).get(COOKIE)?.value;
   if (!raw) return false;
   const [exp, sig] = raw.split(".");
   if (!exp || !sig || !safeEqual(sig, sign(exp))) return false;
   return Number(exp) > Date.now();
+}
+
+/** Админ мақомидаги сайт фойдаланувчиси (блокланмаган) */
+async function adminUser() {
+  const { currentUser } = await import("./users");
+  const u = await currentUser().catch(() => null);
+  return u?.is_admin ? u : null;
+}
+
+export async function isAdmin() {
+  return (await passwordSession()) || Boolean(await adminUser());
+}
+
+/** Журнал учун: ким бажарди — «admin» (умумий парол) ёки «user:<id>» */
+export async function adminActor() {
+  if (await passwordSession()) return "admin";
+  const u = await adminUser();
+  return u ? `user:${u.id}` : "admin";
 }
 
 export async function requireAdmin() {

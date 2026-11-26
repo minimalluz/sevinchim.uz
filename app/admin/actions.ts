@@ -55,6 +55,9 @@ export async function login(_prev: ActionResult | null, form: FormData): Promise
 
 export async function logout() {
   await destroySession();
+  // Админ мақомидаги аккаунт билан кирилган бўлса — ундан ҳам чиқилади
+  const { endSession } = await import("@/lib/users");
+  await endSession();
   redirect("/admin");
 }
 

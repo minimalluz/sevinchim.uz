@@ -76,6 +76,8 @@ const MIGRATIONS: string[] = [
     ip TEXT
   );
   `,
+  // 2: сайт фойдаланувчисига админ мақоми (админ-панелга ўз пароли билан киради)
+  `ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 function open(): DB {

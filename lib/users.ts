@@ -33,6 +33,7 @@ export type UserRow = {
   expiry_notice: number | null;
   tg_id: number | null;
   tg_name: string | null;
+  is_admin: number;
 };
 
 /** Бошқа жойларга (браузерга) бериладиган хавфсиз кўриниш */
@@ -47,6 +48,7 @@ export type PublicUser = {
   premiumFrom: number | null;
   premiumUntil: number | null;
   telegram: string | null;
+  isAdmin: boolean;
 };
 
 export const isPremium = (u: Pick<UserRow, "premium_until" | "blocked"> | null | undefined, now = Date.now()) =>
@@ -64,6 +66,7 @@ export function toPublic(u: UserRow): PublicUser {
     premiumFrom: u.premium_from,
     premiumUntil: u.premium_until,
     telegram: u.tg_id ? u.tg_name || "уланган" : null,
+    isAdmin: Boolean(u.is_admin),
   };
 }
 

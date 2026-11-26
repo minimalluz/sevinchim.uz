@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   approvePaymentAction, auditAction, extendPremiumAction, getPremiumSettingsAction, listPaymentsAction, listUsersAction,
-  rejectPaymentAction, resetLinkAction, savePremiumSettingsAction, setBlockedAction, setPremiumUntilAction, statsAction, userDetailAction,
+  rejectPaymentAction, resetLinkAction, savePremiumSettingsAction, setBlockedAction, setRoleAction, setPremiumUntilAction, statsAction, userDetailAction,
 } from "@/app/admin/users-actions";
 import type { ActionResult } from "@/app/admin/actions";
 import type { PremiumSettings } from "@/lib/premium";
@@ -139,6 +139,7 @@ export function UsersAdmin() {
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-2 font-semibold">
                         {u.name} <TypeBadge premium={prem} blocked={Boolean(u.blocked)} />
+                        {u.is_admin ? <span className="rounded-full bg-brand/20 px-2 py-0.5 text-[11px] font-bold text-brand">АДМИН</span> : null}
                       </span>
                       <span className="block text-sm text-muted">
                         {u.phone}{u.login ? ` • ${u.login}` : ""} • рўйхат: {dt(u.created_at)}
@@ -199,7 +200,10 @@ function UserDetail({ id, onChange }: { id: number; onChange: () => void }) {
         <div><dt className="text-muted">Рўйхатдан ўтган</dt><dd className="font-semibold">{dt(u.createdAt)}</dd></div>
         <div><dt className="text-muted">Охирги кириш</dt><dd className="font-semibold">{dt(u.lastLogin)}</dd></div>
         <div><dt className="text-muted">Telegram</dt><dd className="font-semibold">{u.telegram || "уланмаган"}</dd></div>
-        <div><dt className="text-muted">Аккаунт</dt><dd><TypeBadge premium={u.premium} blocked={u.blocked} /></dd></div>
+        <div>
+          <dt className="text-muted">Аккаунт</dt>
+          <dd className="flex flex-wrap gap-1"><TypeBadge premium={u.premium} blocked={u.blocked} />{u.isAdmin && <span className="rounded-full bg-brand/20 px-2 py-0.5 text-[11px] font-bold text-brand">АДМИН</span>}</dd>
+        </div>
         <div><dt className="text-muted">Premium бошланган</dt><dd className="font-semibold">{dt(u.premiumFrom)}</dd></div>
         <div><dt className="text-muted">Premium тугаши</dt><dd className="font-semibold">{dt(u.premiumUntil)}</dd></div>
       </dl>
@@ -232,6 +236,20 @@ function UserDetail({ id, onChange }: { id: number; onChange: () => void }) {
           onClick={() => act(() => setBlockedAction(u.id, !u.blocked), u.blocked ? undefined : `${u.name} аккаунтини блоклайми? У тизимдан чиқариб юборилади.`)}
         >
           {u.blocked ? "Блокдан чиқариш" : "Блоклаш"}
+        </button>
+        <button
+          className={u.isAdmin ? btnDanger : btnGhost}
+          disabled={busy || (u.blocked && !u.isAdmin)}
+          onClick={() =>
+            act(
+              () => setRoleAction(u.id, !u.isAdmin),
+              u.isAdmin
+                ? `${u.name}дан админ мақомини оламизми?`
+                : `${u.name}ни АДМИН қиламизми?\n\nУ ўз телефони ва пароли билан бошқарув панелига кириб, барча фойдаланувчилар, тўловлар ва созламаларни бошқара олади.`,
+            )
+          }
+        >
+          {u.isAdmin ? "Админликдан олиш" : "Админ қилиш"}
         </button>
         <button
           className={btnGhost}
@@ -393,6 +411,8 @@ const ACTIONS: Record<string, string> = {
   "user.premium.extend": "Premium узайтирилди",
   "user.reset_link": "Пароль тиклаш ҳаволаси",
   "settings.premium": "Premium созламалари",
+  "user.admin.grant": "Админ мақоми берилди",
+  "user.admin.revoke": "Админ мақоми олинди",
 };
 
 export function PremiumAdmin() {
@@ -527,7 +547,7 @@ export function PremiumAdmin() {
                 <span>
                   <b>{ACTIONS[a.action] ?? a.action}</b>
                   {a.target ? <span className="text-muted"> • #{a.target}</span> : null}
-                  <span className="text-muted"> • {a.actor.startsWith("telegram:") ? "Telegram" : "Панел"}</span>
+                  <span className="text-muted"> • {a.actor.startsWith("telegram:") ? "Telegram" : a.actor.startsWith("user:") ? `Админ #${a.actor.slice(5)}` : "Панел (умумий парол)"}</span>
                 </span>
                 <span className="text-xs text-muted tabular-nums">{dt(a.at)}{a.ip ? ` • ${a.ip}` : ""}</span>
               </li>

@@ -141,6 +141,9 @@ export function Cabinet({ user, phone, payments, botReady, restored }: {
           )}
         </section>
 
+        {user.isAdmin && (
+          <a href="/admin" className={`${btnPrimary} w-full`}>Бошқарув панели</a>
+        )}
         <TelegramCard linked={user.telegram} botReady={botReady} />
       </div>
 

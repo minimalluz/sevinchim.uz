@@ -1,7 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
-import { requireAdmin } from "@/lib/auth";
+import { adminActor, requireAdmin } from "@/lib/auth";
 import * as premium from "@/lib/premium";
 import { UserError, formatPhone, getUser, isPremium } from "@/lib/users";
 import { SITE_URL } from "@/lib/site";
@@ -14,10 +14,14 @@ async function ip() {
   return h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || "local";
 }
 
-async function run(fn: (ip: string) => unknown, message = "Сақланди"): Promise<ActionResult> {
+async function by(): Promise<premium.By> {
+  return { ip: await ip(), actor: await adminActor() };
+}
+
+async function run(fn: (by: premium.By) => unknown, message = "Сақланди"): Promise<ActionResult> {
   try {
     await requireAdmin();
-    await fn(await ip());
+    await fn(await by());
     return { ok: true, message };
   } catch (e) {
     if (!(e instanceof UserError) && !(e instanceof Error && e.message === "Рухсат йўқ")) console.error("[admin]", e);
@@ -54,6 +58,7 @@ export async function userDetailAction(id: number) {
     premiumFrom: u.premium_from,
     premiumUntil: u.premium_until,
     telegram: u.tg_id ? u.tg_name || "уланган" : null,
+    isAdmin: Boolean(u.is_admin),
     payments: premium.userPayments(u.id),
   };
 }
@@ -80,10 +85,14 @@ export async function extendPremiumAction(id: number, days: number) {
   return run((ip) => premium.adminExtendPremium(Number(id), Number(days), ip), `Premium ${days} кунга узайтирилди`);
 }
 
+export async function setRoleAction(id: number, admin: boolean) {
+  return run((b) => premium.adminSetRole(Number(id), Boolean(admin), b), admin ? "Админ мақоми берилди" : "Админ мақоми олинди");
+}
+
 export async function resetLinkAction(id: number): Promise<ActionResult & { url?: string }> {
   try {
     await requireAdmin();
-    const token = premium.adminResetLink(Number(id), await ip());
+    const token = premium.adminResetLink(Number(id), await by());
     return { ok: true, url: `${SITE_URL}/profil/tiklash?t=${token}` };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Хатолик" };
@@ -100,11 +109,11 @@ export async function listPaymentsAction(status: string, page: number) {
 }
 
 export async function approvePaymentAction(id: number) {
-  return run((ip) => premium.approvePayment(Number(id), "admin", ip), "Тўлов тасдиқланди — Premium фаоллашди");
+  return run((b) => premium.approvePayment(Number(id), b.actor, b.ip), "Тўлов тасдиқланди — Premium фаоллашди");
 }
 
 export async function rejectPaymentAction(id: number, reason: string) {
-  return run((ip) => premium.rejectPayment(Number(id), String(reason || ""), "admin", ip), "Тўлов рад этилди");
+  return run((b) => premium.rejectPayment(Number(id), String(reason || ""), b.actor, b.ip), "Тўлов рад этилди");
 }
 
 /* ---------- Premium созламалари ---------- */

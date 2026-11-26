@@ -25,6 +25,10 @@ export function LoginForm() {
           {pending ? "Текширилмоқда…" : "Кириш"}
         </button>
       </form>
+      <p className="mt-6 text-sm text-muted">
+        Админ мақоми берилган бўлсангиз, ўз аккаунтингиз билан{" "}
+        <a href="/profil?next=/admin" className="font-semibold text-brand hover:underline">«Менинг профилим» орқали киринг</a>.
+      </p>
     </section>
   );
 }

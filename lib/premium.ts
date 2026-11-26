@@ -43,7 +43,9 @@ export function getPremiumSettings(): PremiumSettings {
   };
 }
 
-export function savePremiumSettings(s: PremiumSettings, ip: string) {
+export type By = { ip: string; actor: string };
+
+export function savePremiumSettings(s: PremiumSettings, by: By) {
   const price = Math.round(Number(s.price));
   const days = Math.round(Number(s.days));
   if (!(price >= 1000 && price <= 100_000_000)) throw new UserError("Нарх 1 000 сўмдан кам бўлмасин");
@@ -58,11 +60,11 @@ export function savePremiumSettings(s: PremiumSettings, ip: string) {
   setSetting("card_bank", String(s.cardBank || "").trim().slice(0, 60));
   setSetting("pay_note", String(s.note || "").trim().slice(0, 500));
   setSetting("support_contact", String(s.support || "").trim().slice(0, 100));
-  audit("admin", "settings.premium", null, {
+  audit(by.actor, "settings.premium", null, {
     price: [before.price, price],
     days: [before.days, days],
     card: before.cardNumber !== digits ? `…${before.cardNumber.slice(-4)} → …${digits.slice(-4)}` : undefined,
-  }, ip);
+  }, by.ip);
 }
 
 export const formatCard = (d: string) => d.replace(/(\d{4})(?=\d)/g, "$1 ");
@@ -201,49 +203,58 @@ export function rejectPayment(id: number, reason: string, actor: string, ip?: st
 
 /* ---------- Админ: фойдаланувчиларни бошқариш ---------- */
 
-export function adminSetPremiumUntil(userId: number, until: number | null, ip: string) {
+export function adminSetPremiumUntil(userId: number, until: number | null, by: By) {
   const u = getUser(userId);
   if (!u) throw new UserError("Фойдаланувчи топилмади");
   const now = Date.now();
   if (until !== null && until <= now) until = null;
   const from = until === null ? u.premium_from : isPremium(u, now) ? u.premium_from ?? now : now;
   db().prepare("UPDATE users SET premium_until = ?, premium_from = ?, expiry_notice = NULL WHERE id = ?").run(until, from, userId);
-  audit("admin", until ? "user.premium.set" : "user.premium.remove", userId, { before: u.premium_until, after: until }, ip);
+  audit(by.actor, until ? "user.premium.set" : "user.premium.remove", userId, { before: u.premium_until, after: until }, by.ip);
 }
 
-export function adminExtendPremium(userId: number, days: number, ip: string) {
+export function adminExtendPremium(userId: number, days: number, by: By) {
   const d = Math.round(Number(days));
   if (!(d >= 1 && d <= 3650)) throw new UserError("Кунлар сони 1–3650");
   const u = getUser(userId);
   if (!u) throw new UserError("Фойдаланувчи топилмади");
   const r = extendPremium(u, d, Date.now());
-  audit("admin", "user.premium.extend", userId, { days: d, until: r.until }, ip);
+  audit(by.actor, "user.premium.extend", userId, { days: d, until: r.until }, by.ip);
   return r;
 }
 
-export function adminSetBlocked(userId: number, blocked: boolean, ip: string) {
+export function adminSetBlocked(userId: number, blocked: boolean, by: By) {
   const u = getUser(userId);
   if (!u) throw new UserError("Фойдаланувчи топилмади");
   tx(() => {
     db().prepare("UPDATE users SET blocked = ? WHERE id = ?").run(blocked ? 1 : 0, userId);
     if (blocked) db().prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
   });
-  audit("admin", blocked ? "user.block" : "user.unblock", userId, null, ip);
+  audit(by.actor, blocked ? "user.block" : "user.unblock", userId, null, by.ip);
 }
 
 /** Паролни тиклаш ҳаволаси (фойдаланувчи администраторга мурожаат қилганда) — 24 соат */
-export function adminResetLink(userId: number, ip: string) {
+/** Сайт фойдаланувчисига админ мақомини бериш / олиш */
+export function adminSetRole(userId: number, admin: boolean, by: By) {
+  const u = getUser(userId);
+  if (!u) throw new UserError("Фойдаланувчи топилмади");
+  if (admin && u.blocked) throw new UserError("Блокланган фойдаланувчини админ қилиб бўлмайди");
+  db().prepare("UPDATE users SET is_admin = ? WHERE id = ?").run(admin ? 1 : 0, userId);
+  audit(by.actor, admin ? "user.admin.grant" : "user.admin.revoke", userId, { name: u.name }, by.ip);
+}
+
+export function adminResetLink(userId: number, by: By) {
   const u = getUser(userId);
   if (!u) throw new UserError("Фойдаланувчи топилмади");
   const token = createToken(userId, "reset_link", DAY_MS);
-  audit("admin", "user.reset_link", userId, null, ip);
+  audit(by.actor, "user.reset_link", userId, null, by.ip);
   return token;
 }
 
 export type UserListItem = {
   id: number; name: string; phone: string; login: string | null; email: string | null;
   created_at: number; last_login: number | null; blocked: number;
-  premium_from: number | null; premium_until: number | null; tg: number; payments: number; paid: number;
+  premium_from: number | null; premium_until: number | null; tg: number; is_admin: number; payments: number; paid: number;
 };
 
 export function listUsers(q: string, filter: "all" | "premium" | "free" | "expired" | "blocked", page: number, per = 30) {
@@ -266,7 +277,7 @@ export function listUsers(q: string, filter: "all" | "premium" | "free" | "expir
   const rows = db()
     .prepare(
       `SELECT u.id, u.name, u.phone, u.login, u.email, u.created_at, u.last_login, u.blocked, u.premium_from, u.premium_until,
-              (u.tg_id IS NOT NULL) tg,
+              (u.tg_id IS NOT NULL) tg, u.is_admin,
               (SELECT count(*) FROM payments p WHERE p.user_id = u.id) payments,
               (SELECT coalesce(sum(amount), 0) FROM payments p WHERE p.user_id = u.id AND p.status = 'approved') paid
        FROM users u ${w} ORDER BY u.id DESC LIMIT ? OFFSET ?`,
