@@ -138,3 +138,26 @@ export async function auditAction() {
   await requireAdmin();
   return premium.auditLog(200);
 }
+
+/* ---------- Сервер ҳолати ---------- */
+
+export async function serverStatusAction() {
+  await requireAdmin();
+  const { serverStatus } = await import("@/lib/serverStatus");
+  const recorder = await import("@/lib/recorder");
+  const autorec = await import("@/lib/autorec");
+  const [s, rec, fm, a1, a2] = await Promise.all([
+    serverStatus(),
+    recorder.recordingStatus(),
+    recorder.fm90Status(),
+    autorec.getAutoRec("sevinchim"),
+    autorec.getAutoRec("fm90"),
+  ]);
+  return {
+    ...s,
+    recording: [
+      { name: "Севинчим эфири", active: rec.active, finalizing: rec.finalizing, startedAt: rec.startedAt ?? null, bytes: rec.bytes ?? 0, auto: a1.enabled, next: a1.next?.label ?? null },
+      { name: "FM 90.8", active: fm.active, finalizing: fm.finalizing, startedAt: fm.startedAt ?? null, bytes: fm.bytes ?? 0, auto: a2.enabled, next: a2.next?.label ?? null },
+    ],
+  };
+}

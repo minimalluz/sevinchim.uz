@@ -7,6 +7,7 @@ import { WEEKDAYS, formatDate, formatDuration, formatTime, onAir } from "@/lib/f
 import type { RecordingStatus } from "@/lib/recorder";
 import { UPLOAD_CHUNK } from "@/lib/audio";
 import { PaymentsAdmin, PremiumAdmin, UsersAdmin } from "./MembersAdmin";
+import { ServerAdmin } from "./ServerAdmin";
 import {
   addEpisode, autoRecAction, deleteEpisode, saveFm90ScheduleAction, setAutoRecAction, logout, publishEpisode, recordingStatusAction, saveAnnouncements, saveSchedule,
   saveStreams, startRecordingAction, stopRecordingAction, updateEpisode,
@@ -64,6 +65,7 @@ const TABS = [
   { id: "users", label: "Фойдаланувчилар" },
   { id: "payments", label: "Тўловлар" },
   { id: "premium", label: "Premium" },
+  { id: "server", label: "Сервер" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
 
@@ -77,7 +79,7 @@ export function AdminDashboard({ content, pendingPayments = 0 }: { content: Site
         <form action={logout}><button className={btnGhost}>Чиқиш</button></form>
       </div>
 
-      <div className="no-scrollbar -mx-4 mt-6 flex gap-2 overflow-x-auto px-4" role="tablist">
+      <div className="no-scrollbar -mx-4 mt-6 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:overflow-visible md:px-0" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -111,6 +113,7 @@ export function AdminDashboard({ content, pendingPayments = 0 }: { content: Site
         {tab === "users" && <UsersAdmin />}
         {tab === "payments" && <PaymentsAdmin />}
         {tab === "premium" && <PremiumAdmin />}
+        {tab === "server" && <ServerAdmin />}
       </div>
     </div>
   );

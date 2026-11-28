@@ -63,6 +63,35 @@ for a in s.get("admins", []):
 PY
 }
 
+# Админ-панелдаги «Сервер ҳолати» учун: DATA_DIR/update-status.json
+#   status <ҳолат> [матн] — idle | fetch-failed | building | waiting | deploying | done | failed | rolled-back | deferred
+status() {
+  python3 - "$DATA_DIR/update-status.json" "$1" "${2:-}" "${NEW:-}" "${MSG:-}" "${OLD:-}" <<'PY' || true
+import json, os, sys, time
+path, state, text, commit, msg, old = sys.argv[1:7]
+try:
+    d = json.load(open(path))
+except Exception:
+    d = {}
+now = int(time.time() * 1000)
+d["checkedAt"] = now
+if state == "idle":
+    d.pop("fetchError", None)
+elif state == "fetch-failed":
+    d["fetchError"] = text
+else:
+    ev = {"state": state, "text": text[-1500:], "commit": commit[:7], "from": old[:7], "msg": msg, "at": now}
+    d["last"] = ev
+    if state in ("done", "failed", "rolled-back", "deferred"):
+        d["history"] = ([ev] + d.get("history", []))[:10]
+tmp = path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(d, f, ensure_ascii=False)
+os.chmod(tmp, 0o644)
+os.replace(tmp, path)
+PY
+}
+
 recording_active() {
   [ -f "$DATA_DIR/recording.json" ] || [ -f "$DATA_DIR/recording-fm90.json" ] && return 0
   # Жадвал бўйича ёзиш ойнаси очиқ (соатлар орасидаги бир неча сонияда ҳам)
@@ -80,18 +109,20 @@ healthy() {
 }
 
 # ---------------------------------------------------------------- 1. Текшириш
-as_user git -C "$APP_DIR" fetch -q origin "$BRANCH" || { log "GitHub'га уланиб бўлмади"; exit 0; }
+as_user git -C "$APP_DIR" fetch -q origin "$BRANCH" || { log "GitHub'га уланиб бўлмади"; status fetch-failed "GitHub'га уланиб бўлмади"; exit 0; }
 OLD=$(as_user git -C "$APP_DIR" rev-parse HEAD)
 NEW=$(as_user git -C "$APP_DIR" rev-parse "origin/$BRANCH")
-[ "$OLD" = "$NEW" ] && exit 0
+[ "$OLD" = "$NEW" ] && { status idle; exit 0; }
 if [ "$(cat "$FAILED_MARK" 2>/dev/null)" = "$NEW" ]; then
   log "Бу коммит аввал йиғилмаган (${NEW:0:7}) — янги коммит кутилмоқда"
+  status idle
   exit 0
 fi
 MSG=$(as_user git -C "$APP_DIR" log -1 --format=%s "$NEW")
 log "Янги версия: ${OLD:0:7} → ${NEW:0:7} — $MSG"
 
 # ------------------------------------------------- 2. Алоҳида папкада йиғиш
+status building "Янги версия йиғилмоқда"
 rm -rf "$NEXT_DIR"
 cp -a "$APP_DIR" "$NEXT_DIR"
 cd "$NEXT_DIR"
@@ -109,6 +140,8 @@ if ! (
   tail -30 "$BUILD_LOG"
   cd /; rm -rf "$NEXT_DIR"
   echo "$NEW" > "$FAILED_MARK"
+  status failed "Йиғишда хато — сайт олдинги версияда ишлаяпти.
+$(tail -20 "$BUILD_LOG")"
   err=$(tail -5 "$BUILD_LOG" | sed 's/[<>&]//g' | cut -c1-300)
   notify "❌ <b>Сайтни янгилаб бўлмади</b> (йиғишда хато)
 ${MSG}
@@ -122,16 +155,18 @@ log "Йиғилди"
 # --------------------------------------------- 3. Эфир ёзуви тугашини кутиш
 waited=0
 while recording_active; do
-  [ "$waited" = 0 ] && log "Эфир ёзилмоқда — ёзув тугашини кутяпмиз"
+  [ "$waited" = 0 ] && { log "Эфир ёзилмоқда — ёзув тугашини кутяпмиз"; status waiting "Эфир ёзилмоқда — ёзув тугашини кутяпмиз (янги версия тайёр)"; }
   sleep 30; waited=$((waited + 30))
   if [ "$waited" -ge "$WAIT_REC_MAX" ]; then
     log "Ёзув жуда узоқ давом этяпти — янгилаш кейинги текширувга қолдирилди"
+    status deferred "Ёзув 6 соатдан узоқ давом этди — янгилаш кейинги текширувга қолдирилди"
     cd /; rm -rf "$NEXT_DIR"; exit 0
   fi
 done
 
 # ------------------------------------------ 4. Алмаштириш ва текшириш
 cd /
+status deploying "Янги версия ишга туширилмоқда"
 rm -rf "$PREV_DIR"
 mv "$APP_DIR" "$PREV_DIR" && mv "$NEXT_DIR" "$APP_DIR"
 systemctl restart "$SERVICE"
@@ -141,6 +176,7 @@ if ! healthy; then
   mv "$APP_DIR" "$APP_DIR.failed" && mv "$PREV_DIR" "$APP_DIR"
   systemctl restart "$SERVICE"
   echo "$NEW" > "$FAILED_MARK"
+  status rolled-back "Янги версия ишга тушмади — олдинги версия тикланди"
   notify "❌ <b>Сайтни янгилаб бўлмади</b> (янги версия ишга тушмади)
 ${MSG}
 
@@ -156,5 +192,6 @@ QUICK=1 SKIP_BUILD=1 PIN_COMMIT="$NEW" APP_DIR="$APP_DIR" BRANCH="$BRANCH" APP_U
 healthy || log "Огоҳлантириш: setup.sh дан кейин сайт жавоб бермаяпти"
 
 log "Тайёр: ${NEW:0:7}"
+status done "Сайт янгиланди"
 notify "🔄 <b>Сайт янгиланди</b>
 ${MSG}"
