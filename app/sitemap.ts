@@ -13,5 +13,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/arxiv`, changeFrequency: "daily", priority: 0.9, lastModified: lastEpisode },
     { url: `${SITE_URL}/haqida`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/media`, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${SITE_URL}/premium`, changeFrequency: "monthly", priority: 0.7 },
   ];
 }

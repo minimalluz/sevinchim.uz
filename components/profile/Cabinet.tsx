@@ -137,6 +137,7 @@ export function Cabinet({ user, phone, payments, botReady, restored }: {
               <li>★ Барча дастурларни тинглаш</li>
               <li>★ Дастурларни юклаб олиш</li>
               <li>★ Premium материаллар</li>
+              <li><Link href="/premium" className="font-semibold text-gold hover:underline">Батафсил →</Link></li>
             </ul>
           )}
         </section>

@@ -147,7 +147,11 @@ export function BottomTabBar() {
 export function SiteFooter({ name, socials }: { name: string; socials: { label: string; url: string }[] }) {
   return (
     <footer className="mx-auto mt-8 hidden max-w-6xl border-t border-white/5 px-4 py-8 text-sm text-muted md:flex md:items-center md:justify-between">
-      <p>© {new Date().getFullYear()} {name} • sevinchim.uz</p>
+      <p>
+        © {new Date().getFullYear()} {name} • sevinchim.uz •{" "}
+        <Link href="/premium" className="font-semibold text-gold hover:underline">PREMIUM</Link> •{" "}
+        <Link href="/shartlar" className="hover:text-ink">Шартлар</Link>
+      </p>
       <ul className="flex gap-5">
         {socials.map((s) => (
           <li key={s.url}>

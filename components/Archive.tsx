@@ -78,6 +78,7 @@ export function EpisodeCard({ ep, rubrics }: { ep: Episode; rubrics: string[] })
             >
               {user ? "Premium сотиб олиш" : "Кириш / Рўйхатдан ўтиш"}
             </Link>
+            <Link href="/premium" className="ml-3 inline-flex min-h-11 items-center text-sm font-semibold text-muted hover:text-ink">Батафсил</Link>
           </div>
         )}
         {current && (

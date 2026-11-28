@@ -48,6 +48,9 @@ export function SupportPremium() {
             >
               <IconCrown width={20} height={20} /> PREMIUM сотиб олиш
             </Link>
+            <Link href="/premium" className="ml-2 mt-6 inline-flex min-h-14 items-center px-4 font-semibold text-muted hover:text-ink">
+              Батафсил →
+            </Link>
           </>
         )}
       </div>
