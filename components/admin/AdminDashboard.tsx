@@ -213,14 +213,14 @@ function EpisodeFields({ value, onChange, rubrics }: { value: Partial<Episode>; 
       <Field label="Қисқача тавсиф" className="md:col-span-2">
         <textarea className={`${input} min-h-24 py-2`} value={value.description ?? ""} onChange={(e) => onChange({ ...value, description: e.target.value })} maxLength={2000} />
       </Field>
-      <Field label="Ким тинглай олади">
+      <Field label="Қаерда туради">
         <select
           className={input}
           value={value.access === "premium" ? "premium" : "free"}
           onChange={(e) => onChange({ ...value, access: e.target.value === "premium" ? "premium" : undefined })}
         >
-          <option value="free">Очиқ (FREE) — ҳамма тинглайди</option>
-          <option value="premium">PREMIUM — фақат обуначилар</option>
+          <option value="free">Архив — ҳамма учун очиқ</option>
+          <option value="premium">PREMIUM саҳифаси — FM 102.7 дастурлари (фақат обуначилар)</option>
         </select>
       </Field>
       <label className="flex min-h-11 items-center gap-2 self-end text-sm">

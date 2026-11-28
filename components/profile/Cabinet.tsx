@@ -134,7 +134,7 @@ export function Cabinet({ user, phone, payments, botReady, restored }: {
           )}
           {!premium && (
             <ul className="mt-4 grid gap-1.5 text-sm text-muted">
-              <li>★ Барча дастурларни тинглаш</li>
+              <li>★ 102.7 FM эфиридан ёзилган дастурлар</li>
               <li>★ Дастурларни юклаб олиш</li>
               <li>★ Premium материаллар</li>
               <li><Link href="/premium" className="font-semibold text-gold hover:underline">Батафсил →</Link></li>

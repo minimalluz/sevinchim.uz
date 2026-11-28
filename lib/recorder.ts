@@ -391,7 +391,8 @@ const sevinchim = new Recorder({
     const id = "e" + Date.now().toString(36) + randomBytes(2).toString("hex");
     const title = `${s.label}${s.part ? ` (${s.part})` : ""} — ${formatDate(date)}`;
     await updateContent((c) => {
-      c.episodes.unshift({ id, title, rubric: s.label, date, duration, description: note ?? "", audio: `/api/audio/${name}`, draft: true });
+      // Эфирдан ёзилгани — PREMIUM саҳифаси учун (админ «Архив»га ўтказиши мумкин)
+      c.episodes.unshift({ id, title, rubric: s.label, date, duration, description: note ?? "", audio: `/api/audio/${name}`, draft: true, access: "premium" });
       if (!c.rubrics.includes(s.label)) c.rubrics.push(s.label);
     });
     return { channel: "sevinchim", ok: true, id, title, duration, note };

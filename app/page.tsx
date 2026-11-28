@@ -12,7 +12,7 @@ export const revalidate = 3600;
 
 export default async function HomePage() {
   const { profile, episodes, rubrics, announcements } = await getContent();
-  const latest = episodes.slice(0, 4);
+  const latest = episodes.filter((e) => e.access !== "premium").slice(0, 4);
 
   return (
     <>

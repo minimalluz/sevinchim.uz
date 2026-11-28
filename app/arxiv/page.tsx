@@ -13,7 +13,10 @@ export const metadata: Metadata = {
 };
 
 export default async function ArchivePage() {
-  const { episodes, rubrics, profile } = await getContent();
+  const content = await getContent();
+  const { rubrics, profile } = content;
+  // Архив — ҳамма учун очиқ; PREMIUM дастурлар алоҳида /premium саҳифасида
+  const episodes = content.episodes.filter((e) => e.access !== "premium");
 
   // Қидирув тизимлари учун: подкаст эпизодлари рўйхати
   const jsonLd = {

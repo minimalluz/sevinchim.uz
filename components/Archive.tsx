@@ -114,7 +114,7 @@ function NowPlayingPanel() {
 
 type Sort = "new" | "old";
 
-export function ArchiveBrowser({ episodes, rubrics }: { episodes: Episode[]; rubrics: string[] }) {
+export function ArchiveBrowser({ episodes, rubrics, emptyText }: { episodes: Episode[]; rubrics: string[]; emptyText?: string }) {
   const [rubric, setRubric] = useState<string>("all");
   const [month, setMonth] = useState<string>("all");
   const [sort, setSort] = useState<Sort>("new");
@@ -207,7 +207,7 @@ export function ArchiveBrowser({ episodes, rubrics }: { episodes: Episode[]; rub
       {list.length === 0 ? (
         <p className="rounded-2xl bg-surface p-6 text-center text-muted">
           {episodes.length === 0
-            ? "Архив тез орада тўлдирилади — эфирлар шу ерга қўшиб борилади."
+            ? emptyText ?? "Архив тез орада тўлдирилади — эфирлар шу ерга қўшиб борилади."
             : rubric !== "all" && month === "all"
               ? `«${rubric}» эшиттиришлари тез орада архивга қўшилади.`
               : "Танланган шартлар бўйича эшиттириш топилмади."}

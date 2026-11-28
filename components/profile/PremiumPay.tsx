@@ -63,7 +63,7 @@ export function PremiumPay({ price, days, card: cardNo, holder, bank, note, pend
         <p className="mt-2 font-display text-4xl font-extrabold">{fmtSum(price)}</p>
         <p className="mt-1 text-muted">{days} кунлик фойдаланиш</p>
         <ul className="mx-auto mt-4 grid max-w-xs gap-1.5 text-left text-sm">
-          <li>★ Сайтдаги барча дастурларни тинглаш</li>
+          <li>★ 102.7 FM эфиридан ёзилган дастурларни тинглаш</li>
           <li>★ Барча дастурларни юклаб олиш</li>
           <li>★ Барча Premium материаллар</li>
         </ul>

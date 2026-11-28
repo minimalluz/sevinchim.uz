@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getPublicContent } from "@/lib/content";
 import { getPremiumSettings, formatSum } from "@/lib/premium";
 import { PremiumCta } from "@/components/PremiumCta";
+import { ArchiveBrowser } from "@/components/Archive";
 import { IconCrown } from "@/components/icons";
 
 // Нарх ва муддат админ-панелдан ўзгаради — ҳар доим янги қиймат
@@ -19,14 +20,16 @@ const no = <span className="text-muted" aria-label="Йўқ">—</span>;
 
 export default async function PremiumLanding() {
   const st = getPremiumSettings();
-  const { episodes } = await getPublicContent();
-  const premiumCount = episodes.filter((e) => e.access === "premium").length;
+  const { episodes: all, rubrics, profile } = await getPublicContent();
+  const episodes = all.filter((e) => e.access === "premium");
+  const premiumCount = episodes.length;
+  const usedRubrics = rubrics.filter((r) => episodes.some((e) => e.rubric === r));
   const payReady = Boolean(st.cardNumber);
 
   const rows: [string, React.ReactNode, React.ReactNode][] = [
     ["Жонли эфирни тинглаш", yes, yes],
-    ["Очиқ дастурларни тинглаш", yes, yes],
-    ["Premium дастурларни тинглаш", no, yes],
+    ["Архив дастурларини тинглаш", yes, yes],
+    [`${profile.frequency} эфиридан ёзилган дастурлар`, no, yes],
     ["Дастурларни юклаб олиш", no, yes],
     ["Premium материаллар", no, yes],
     ["Сайтни қўллаб-қувватлаш", no, <span key="h" aria-label="Ҳа">💛</span>],
@@ -40,7 +43,7 @@ export default async function PremiumLanding() {
   ];
 
   const faq = [
-    ["PREMIUM мажбурийми?", "Йўқ. PREMIUM ихтиёрий — жонли эфир ва очиқ дастурлар ҳамма учун бепул қолади."],
+    ["PREMIUM мажбурийми?", "Йўқ. PREMIUM ихтиёрий — жонли эфир ва архивдаги дастурлар ҳамма учун бепул қолади."],
     ["Обуна қачон фаоллашади?", "Тўлов администратор томонидан тасдиқлангандан кейин. Одатда бу бир неча соат ичида бўлади; Telegram уланган бўлса, хабар келади."],
     ["Муддат тугагач нима бўлади?", `${st.days} кундан кейин аккаунт ўзи FREE ҳолатига қайтади — ҳеч нарса ечиб олинмайди. Хоҳласангиз, қайта тўлаб узайтирасиз.`],
     ["Муддат тугамасдан узайтирсам?", "Янги муддат жорий обунанинг охиридан бошлаб қўшилади — бирорта кун йўқолмайди."],
@@ -55,10 +58,10 @@ export default async function PremiumLanding() {
         <div className="relative grid gap-8 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
           <div>
             <p className="flex items-center gap-2 text-sm font-bold tracking-wider text-gold"><IconCrown width={18} height={18} /> PREMIUM</p>
-            <h1 className="mt-3 font-display text-3xl font-extrabold leading-tight md:text-5xl">Барча дастурлар — битта обунада</h1>
+            <h1 className="mt-3 font-display text-3xl font-extrabold leading-tight md:text-5xl">«{profile.station}» эфиридан дастурлар</h1>
             <p className="mt-4 max-w-xl text-muted md:text-lg">
-              Архивдаги барча эшиттиришларни тингланг ва юклаб олинг. Обунангиз сайтнинг домен ва сервер харажатларини қоплашга, унинг
-              узлуксиз ишлашига ёрдам беради.
+              {profile.frequency} тўлқинидаги эфирлардан ёзиб олинган дастурларни исталган вақтда тингланг ва юклаб олинг. Обунангиз
+              сайтнинг домен ва сервер харажатларини қоплашга, унинг узлуксиз ишлашига ёрдам беради.
             </p>
             <PremiumCta ready={payReady} className="mt-7" />
           </div>
@@ -69,6 +72,16 @@ export default async function PremiumLanding() {
             {premiumCount > 0 && <p className="mt-3 text-xs font-semibold text-gold">{premiumCount} та Premium дастур</p>}
           </div>
         </div>
+      </section>
+
+      {/* PREMIUM дастурлар (архивдан алоҳида) */}
+      <section className="mt-12" aria-labelledby="list-h">
+        <h2 id="list-h" className="font-display text-xl font-bold md:text-2xl">PREMIUM дастурлар</h2>
+        <p className="mt-1 mb-4 text-sm text-muted">
+          {profile.frequency} эфиридан ёзиб олинган. Тинглаш ва юклаб олиш — PREMIUM обуначилар учун.{" "}
+          <Link href="/arxiv" className="font-semibold text-ink underline underline-offset-2">Архив дастурлари</Link> эса ҳамма учун очиқ.
+        </p>
+        <ArchiveBrowser episodes={episodes} rubrics={usedRubrics} emptyText="PREMIUM дастурлар тез орада қўшилади." />
       </section>
 
       {/* FREE / PREMIUM */}
